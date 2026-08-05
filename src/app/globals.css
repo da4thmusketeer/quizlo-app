@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #16151d;
+  --paper: #fbfaf7;
+  --pink: #ff5277;
+  --lilac: #d7baff;
+  --lime: #d8ff72;
+  --blue: #96cbff;
+  --muted: #706e78;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", sans-serif;
+  overflow-x: hidden;
+}
+
+/* Background texture grain */
+.grain {
+  position: fixed;
+  inset: 0;
+  opacity: 0.035;
+  pointer-events: none;
+  z-index: 99;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
+}
+
+.font-dm-mono {
+  font-family: var(--font-dm-mono), "DM Mono", monospace;
+}
+
+/* Headline angled highlight underline */
+h1 .highlight {
+  position: relative;
+  display: inline-block;
+  z-index: 0;
+}
+
+h1 .highlight:after {
+  content: "";
+  position: absolute;
+  height: 30%;
+  width: 104%;
+  background: var(--lime);
+  left: -2%;
+  bottom: 2%;
+  z-index: -1;
+  transform: rotate(-2deg);
+}
+
+/* Ticker marquee animation */
+.marquee-track {
+  display: inline-block;
+  animation: slide 24s linear infinite;
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Tactile 3D Buttons */
+.button-3d {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--pink);
+  color: #fff;
+  text-decoration: none;
+  padding: 16px 18px 16px 22px;
+  border-radius: 14px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  box-shadow: 0 6px 0 #d73a5a;
+  transition: transform 0.2s, box-shadow 0.2s;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button-3d span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--pink);
+  font-size: 1rem;
+}
+
+.button-3d:hover {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 #d73a5a;
+}
+
+.button-lime {
+  background: var(--lime);
+  color: var(--ink);
+  box-shadow: 0 6px 0 #92b83b;
+}
+
+.button-lime span {
+  color: #64871b;
+}
+
+.button-lime:hover {
+  box-shadow: 0 3px 0 #92b83b;
+}
+
+/* Orbit Graphic */
+.orbit {
+  position: absolute;
+  width: 330px;
+  height: 330px;
+  right: 8vw;
+  top: 11%;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  opacity: 0.9;
+}
+
+.orbit:before,
+.orbit:after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+}
+
+.orbit:before {
+  width: 54px;
+  height: 54px;
+  background: var(--lilac);
+  top: -18px;
+  left: 47px;
+  border: 1.5px solid var(--ink);
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.orbit:after {
+  width: 23px;
+  height: 23px;
+  background: var(--pink);
+  right: 19px;
+  bottom: 20px;
+}
+
+/* Floating Quiz Widget Card */
+.floating-card {
+  position: absolute;
+  right: 3vw;
+  bottom: 10%;
+  width: 230px;
+  background: #fff;
+  border: 1.5px solid var(--ink);
+  border-radius: 13px;
+  padding: 17px;
+  box-shadow: 8px 8px 0 var(--ink);
+  transform: rotate(5deg);
+  z-index: 1;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.floating-card:hover {
+  transform: rotate(3deg) translateY(-4px);
+  box-shadow: 10px 10px 0 var(--ink);
+}
+
+/* Poster Interactive Bubble */
+.bubble {
+  position: absolute;
+  background: var(--pink);
+  border-radius: 50%;
+  width: 330px;
+  height: 330px;
+  right: -85px;
+  top: -70px;
+  transition: transform 0.6s ease;
+}
+
+.bubble:before {
+  content: "?";
+  font-weight: 800;
+  font-size: 13rem;
+  font-family: var(--font-plus-jakarta), "Plus Jakarta Sans", sans-serif;
+  position: absolute;
+  left: 100px;
+  top: 34px;
+  color: var(--ink);
+}
+
+.poster:hover .bubble {
+  transform: scale(1.08) rotate(10deg);
+}
+
+/* Scroll reveal animations */
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (max-width: 760px) {
+  .orbit {
+    width: 220px;
+    height: 220px;
+    right: -50px;
+    top: 6%;
+  }
+  .floating-card {
+    display: none;
+  }
+  .bubble {
+    right: -145px;
+  }
+}
