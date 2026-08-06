@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
+import "goey-toast/styles.css";
+import ToasterProvider from "@/components/ToasterProvider";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -31,6 +33,7 @@ export default function RootLayout({
       <body className="antialiased">
         <div className="grain" aria-hidden="true" />
         {children}
+        <ToasterProvider />
       </body>
     </html>
   );

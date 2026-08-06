@@ -1,32 +1,52 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/AuthLayout";
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { login, storeToken } from "@/lib/auth";
+import { goeyToast } from "goey-toast";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Simulate authentication API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await login({ email, password });
+
+      if (response.token) {
+        storeToken(response.token);
+      }
+
       setIsSuccess(true);
+      goeyToast.success("Login Successful!", {
+        description: "Welcome back, champion! Redirecting to your Quizlo home page...",
+      });
+
+      const redirectTo = searchParams.get("redirect") || "/home";
       setTimeout(() => {
-        router.push("/home");
+        router.push(redirectTo);
       }, 800);
-    }, 1000);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "Login failed. Please try again.";
+      setError(errMsg);
+      goeyToast.error("Login Failed", { description: errMsg });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
 
@@ -34,24 +54,15 @@ export default function LoginPage() {
     <AuthLayout
       title="Welcome back!"
       subtitle="Log in to access your quizzes, study decks, and daily streaks."
-      badgeText="Ready to study? 🔥"
+      badgeText="Ready to study? "
     >
-      {isSuccess ? (
-        <div className="bg-lime/30 border-2 border-ink p-6 rounded-[16px] text-center space-y-3 shadow-[4px_4px_0_#16151d] animate-fade-in">
-          <div className="text-3xl">🎉</div>
-          <h3 className="font-extrabold text-[1.2rem] text-ink">Login Successful!</h3>
-          <p className="text-muted text-[0.85rem]">
-            Welcome back, champion. Redirecting you to your Quizlo dashboard...
-          </p>
-          <button
-            onClick={() => setIsSuccess(false)}
-            className="text-[0.8rem] font-bold text-pink hover:underline pt-2"
-          >
-            Reset demo
-          </button>
-        </div>
-      ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border-2 border-red-400 p-3 rounded-[12px] text-red-700 text-[0.85rem] font-medium">
+              {error}
+            </div>
+          )}
           {/* Email Input */}
           <div className="space-y-1.5">
             <label
@@ -85,16 +96,12 @@ export default function LoginPage() {
               >
                 Password
               </label>
-              <a
-                href="#forgot"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert("Password reset instructions sent to your email demo!");
-                }}
+              <Link
+                href="/forgot-password"
                 className="text-[0.78rem] font-bold text-pink hover:underline"
               >
                 Forgot password?
-              </a>
+              </Link>
             </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
@@ -143,31 +150,7 @@ export default function LoginPage() {
             disabled={isLoading}
             className="w-full button-3d justify-center py-3.5 mt-2 font-extrabold text-[0.95rem] disabled:opacity-75 disabled:cursor-not-allowed"
           >
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Logging in...
-              </span>
-            ) : (
-              <>
-                Log In <span>→</span>
-              </>
-            )}
+            {isLoading ? "Logging in..." : "Log In"}
           </button>
 
           {/* Divider */}
@@ -184,7 +167,11 @@ export default function LoginPage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => alert("Google Login demo triggered!")}
+              onClick={() =>
+                goeyToast.info("Social Login 🔑", {
+                  description: "Google Login demo triggered!",
+                })
+              }
               className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border-2 border-ink rounded-[12px] font-bold text-[0.85rem] text-ink shadow-[3px_3px_0_#16151d] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[1px_1px_0_#16151d] transition-all cursor-pointer"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -210,10 +197,17 @@ export default function LoginPage() {
 
             <button
               type="button"
-              onClick={() => alert("GitHub Login demo triggered!")}
+              onClick={() =>
+                goeyToast.info("Social Login 🔑", {
+                  description: "GitHub Login demo triggered!",
+                })
+              }
               className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white border-2 border-ink rounded-[12px] font-bold text-[0.85rem] text-ink shadow-[3px_3px_0_#16151d] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[1px_1px_0_#16151d] transition-all cursor-pointer"
             >
-              <svg className="w-4 h-4 fill-current text-ink" viewBox="0 0 24 24">
+              <svg
+                className="w-4 h-4 fill-current text-ink"
+                viewBox="0 0 24 24"
+              >
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
               </svg>
               GitHub
@@ -231,7 +225,20 @@ export default function LoginPage() {
             </Link>
           </p>
         </form>
-      )}
     </AuthLayout>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-pink border-t-transparent" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
