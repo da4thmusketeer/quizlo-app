@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import DashboardNavbar from "@/components/DashboardNavbar";
+import { goeyToast } from "goey-toast";
+import { getProfileData, getLevelLabel, ProfileData } from "@/lib/user";
 import {
   Sparkles,
   BookOpen,
@@ -137,9 +139,12 @@ const STARTER_DECKS: QuizDeck[] = [
 ];
 
 export default function HomePage() {
+  const [profile, setProfile] = useState<ProfileData | null>(null);
   const [userXp, setUserXp] = useState(0);
   const [userStreak, setUserStreak] = useState(0);
+  const [userLevel, setUserLevel] = useState(1);
   const [completedQuizCount, setCompletedQuizCount] = useState(0);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
   // Modals & Active Quiz state
   const [activeDeck, setActiveDeck] = useState<QuizDeck | null>(null);
@@ -152,6 +157,38 @@ export default function HomePage() {
   // AI Modal generator form state
   const [aiNotes, setAiNotes] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadProfile() {
+      try {
+        const res = await getProfileData();
+        if (isMounted && res.success && res.data) {
+          setProfile(res.data);
+          setUserXp(res.data.xp ?? 0);
+          setUserStreak(res.data.streak ?? 0);
+          setUserLevel(res.data.level ?? 1);
+
+          if (res.dailyLoginXP && res.dailyLoginXP > 0) {
+            goeyToast.success("Daily Login Bonus! 🎁", {
+              description: `You earned +${res.dailyLoginXP} XP for logging in today!`,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch profile data on homepage:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoadingProfile(false);
+        }
+      }
+    }
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const startQuiz = (deck: QuizDeck) => {
     setActiveDeck(deck);
@@ -175,10 +212,15 @@ export default function HomePage() {
       setCurrentQuestionIdx((prev) => prev + 1);
       setSelectedOption(null);
     } else {
+      const earnedXp = score * 20 + 50;
       setQuizFinished(true);
-      setUserXp((prev) => prev + score * 20 + 50);
+      setUserXp((prev) => prev + earnedXp);
       setCompletedQuizCount((prev) => prev + 1);
       if (userStreak === 0) setUserStreak(1);
+
+      goeyToast.success("Quiz Completed! 🏆", {
+        description: `Great job! You scored ${score}/${activeDeck.questions.length} and earned +${earnedXp} XP!`,
+      });
     }
   };
 
@@ -235,16 +277,26 @@ export default function HomePage() {
       };
 
       setAiNotes("");
+      goeyToast.success("AI Quiz Generated! ⚡", {
+        description: "Your custom AI quiz deck has been created.",
+      });
       startQuiz(customDeck);
     }, 1400);
   };
 
+  const usernameDisplay =
+    profile?.username || profile?.firstName || (isLoadingProfile ? "Quizzer" : "Quizzer");
+  const rankLabel = getLevelLabel(userLevel);
+
   return (
     <div className="min-h-screen flex flex-col bg-paper text-ink selection:bg-pink selection:text-white">
       <DashboardNavbar
-        userName="Alex Rivers"
+        userName={usernameDisplay}
         userXp={userXp}
         userStreak={userStreak}
+        userLevel={userLevel}
+        profilePicture={profile?.profilePicture}
+        email={profile?.email}
         onCreateQuizClick={() => setShowAiModal(true)}
       />
 
@@ -257,7 +309,7 @@ export default function HomePage() {
               🌱 Account Ready & Onboarded
             </div>
             <h1 className="text-[2.2rem] sm:text-[2.8rem] font-extrabold tracking-[-0.04em] leading-[1.1] text-ink">
-              Welcome aboard, <span className="highlight">Alex!</span> 👋
+              Welcome aboard, <span className="highlight">{usernameDisplay}!</span> 👋
             </h1>
             <p className="text-muted text-[0.98rem] mt-2 leading-[1.6]">
               Your brain glow-up starts now. Choose a quick action below or test your skills with a 3-minute starter quiz to unlock your 1-day study streak!
@@ -298,7 +350,7 @@ export default function HomePage() {
         {/* Quick Action Grid */}
         <section className="space-y-4">
           <h2 className="text-[1.35rem] font-extrabold tracking-[-0.03em] text-ink flex items-center gap-2">
-            <Zap className="w-5 h-5 text-pink fill-pink" /> Quick Actions
+             Quick Actions
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -308,9 +360,6 @@ export default function HomePage() {
               className="bg-lime/30 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group"
             >
               <div>
-                <div className="w-12 h-12 rounded-[14px] bg-lime border-2 border-ink flex items-center justify-center text-ink text-xl font-bold mb-4 shadow-[3px_3px_0_#16151d]">
-                  ⚡
-                </div>
                 <span className="font-dm-mono text-[0.7rem] font-bold text-ink uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-ink inline-block mb-2">
                   Instant AI
                 </span>
@@ -328,13 +377,14 @@ export default function HomePage() {
 
             {/* Card 2: Explore Community */}
             <div
-              onClick={() => alert("Exploring community library...")}
+              onClick={() =>
+                goeyToast.info("Community Library", {
+                  description: "Exploring community quiz library...",
+                })
+              }
               className="bg-lilac/30 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group"
             >
               <div>
-                <div className="w-12 h-12 rounded-[14px] bg-lilac border-2 border-ink flex items-center justify-center text-purple-950 text-xl font-bold mb-4 shadow-[3px_3px_0_#16151d]">
-                  📚
-                </div>
                 <span className="font-dm-mono text-[0.7rem] font-bold text-purple-950 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-ink inline-block mb-2">
                   50,000+ Decks
                 </span>
@@ -352,13 +402,14 @@ export default function HomePage() {
 
             {/* Card 3: Custom Builder */}
             <div
-              onClick={() => alert("Opening manual quiz builder...")}
+              onClick={() =>
+                goeyToast.info("Manual Deck Builder ✏️", {
+                  description: "Opening custom deck builder...",
+                })
+              }
               className="bg-pink/15 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group"
             >
               <div>
-                <div className="w-12 h-12 rounded-[14px] bg-pink text-white border-2 border-ink flex items-center justify-center text-xl font-bold mb-4 shadow-[3px_3px_0_#16151d]">
-                  ✏️
-                </div>
                 <span className="font-dm-mono text-[0.7rem] font-bold text-pink uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-ink inline-block mb-2">
                   Custom Cards
                 </span>
@@ -378,31 +429,34 @@ export default function HomePage() {
 
         {/* Stats Summary Panel */}
         <section className="bg-white border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col">
+          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col justify-between">
             <span className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted">Daily Streak</span>
             <div className="text-[1.8rem] font-extrabold text-ink flex items-center gap-2 mt-1">
-              <Flame className="w-6 h-6 text-pink fill-pink" /> {userStreak} <span className="text-xs font-normal text-muted">Days</span>
+              {/* <Flame className="w-6 h-6 text-pink fill-pink" />  */}
+              {userStreak} <span className="text-xs font-normal text-muted">Days</span>
             </div>
           </div>
 
-          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col">
+          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col justify-between">
             <span className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted">Total XP</span>
             <div className="text-[1.8rem] font-extrabold text-ink flex items-center gap-1.5 mt-1 font-dm-mono">
-              ⚡ {userXp}
+              {/* <Zap className="w-5 h-5 text-ink fill-lime shrink-0" />  */}
+              {userXp}
             </div>
           </div>
 
-          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col">
+          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col justify-between">
             <span className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted">Quizzes Played</span>
             <div className="text-[1.8rem] font-extrabold text-ink flex items-center gap-2 mt-1">
-              🏆 {completedQuizCount}
+               {completedQuizCount}
             </div>
           </div>
 
-          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col">
-            <span className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted">Rank</span>
-            <div className="text-[1.1rem] font-extrabold text-ink flex items-center gap-2 mt-2">
-              🌱 Novice
+          <div className="p-4 bg-paper rounded-[14px] border border-ink/20 flex flex-col justify-between">
+            <span className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted">Level / Rank</span>
+            <div className="text-[1.1rem] font-extrabold text-ink flex items-center gap-1.5 mt-2">
+              {/* <Trophy className="w-5 h-5 text-purple-700 shrink-0" /> */}
+              <span className="truncate">Lvl {userLevel}</span>
             </div>
           </div>
         </section>
@@ -593,7 +647,7 @@ export default function HomePage() {
 
             <div className="mb-4">
               <span className="inline-block px-3 py-1 bg-lime text-ink text-[0.72rem] font-bold font-dm-mono uppercase rounded-full border border-ink mb-2">
-                ⚡ Quizlo AI Engine
+                 Quizlo AI Engine
               </span>
               <h3 className="text-[1.5rem] font-extrabold text-ink">Generate AI Quiz</h3>
               <p className="text-muted text-[0.85rem] mt-1">
@@ -628,7 +682,7 @@ export default function HomePage() {
                   </span>
                 ) : (
                   <>
-                    Build Quiz Now <span>⚡</span>
+                    Build Quiz Now 
                   </>
                 )}
               </button>
