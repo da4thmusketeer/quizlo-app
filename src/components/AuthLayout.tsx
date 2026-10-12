@@ -12,7 +12,7 @@ export default function AuthLayout({
   children,
   title,
   subtitle,
-  badgeText = "Welcome to Quizlo 🚀",
+  badgeText = "Welcome to Quizlo",
 }: AuthLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-paper text-ink selection:bg-pink selection:text-white relative overflow-hidden">
@@ -38,7 +38,7 @@ export default function AuthLayout({
           href="/"
           className="text-[0.82rem] font-bold text-muted hover:text-ink transition-colors flex items-center gap-1 no-underline"
         >
-          ← Back to home
+          Back to home
         </Link>
       </header>
 
@@ -86,7 +86,7 @@ export default function AuthLayout({
 
             {/* Testimonial pill */}
             <div className="pt-4 border-t border-ink/10 flex items-center justify-between text-[0.78rem] text-ink font-medium">
-              <span>⭐️⭐️⭐️⭐️⭐️ 4.9/5 student rating</span>
+              <span> 4.9/5 student rating</span>
               <span className="font-dm-mono text-pink font-bold">#StudySmarter</span>
             </div>
           </div>

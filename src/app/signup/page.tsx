@@ -28,9 +28,9 @@ export default function SignupPage() {
     if (/[A-Z]/.test(password)) score += 1;
     if (/[0-9]/.test(password) || /[^A-Za-z0-9]/.test(password)) score += 1;
 
-    if (score <= 1) return { score: 1, label: "Weak ⚠️", color: "bg-pink text-pink" };
-    if (score <= 3) return { score: 2, label: "Good 👍", color: "bg-lilac text-purple-700" };
-    return { score: 3, label: "Strong 💪", color: "bg-lime text-ink" };
+    if (score <= 1) return { score: 1, label: "Weak ", color: "bg-pink text-pink" };
+    if (score <= 3) return { score: 2, label: "Good ", color: "bg-lilac text-purple-700" };
+    return { score: 3, label: "Strong ", color: "bg-lime text-ink" };
   };
 
   const strength = getPasswordStrength();

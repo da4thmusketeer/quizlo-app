@@ -26,13 +26,13 @@ const steps: StepItem[] = [
 
 export default function HowItWorks() {
   return (
-    <section className="py-[100px] md:py-[145px] px-[max(5vw,28px)]" id="how">
-      <Reveal className="flex flex-col md:flex-row justify-between items-start md:items-end mb-[40px] md:mb-[58px]">
+    <section className="py-16 sm:py-24 md:py-[145px] px-4 sm:px-6 md:px-[max(5vw,28px)]" id="how">
+      <Reveal className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 sm:mb-12 md:mb-[58px]">
         <div>
-          <span className="font-dm-mono text-[0.68rem] tracking-[0.08em] uppercase text-muted">
+          <span className="font-dm-mono text-[0.62rem] sm:text-[0.68rem] tracking-[0.06em] sm:tracking-[0.08em] uppercase text-muted">
             Tiny wins, big brain energy
           </span>
-          <h2 className="text-[clamp(2.4rem,5vw,5.2rem)] leading-[0.94] tracking-[-0.07em] mt-[14px] mb-0 max-w-[680px] font-extrabold">
+          <h2 className="text-[clamp(1.9rem,6vw,5.2rem)] leading-[0.96] sm:leading-[0.94] tracking-[-0.06em] sm:tracking-[-0.07em] mt-3 sm:mt-[14px] mb-0 max-w-[680px] font-extrabold">
             Your study break just got a personality.
           </h2>
         </div>
@@ -47,17 +47,17 @@ export default function HowItWorks() {
         {steps.map((step, idx) => (
           <article
             key={idx}
-            className={`py-[22px] md:py-[28px] pr-0 md:pr-[28px] min-h-0 md:min-h-[245px] border-b-[1.5px] md:border-b-0 md:border-r-[1.5px] border-ink relative ${
+            className={`py-5 sm:py-6 md:py-[28px] pr-0 md:pr-[28px] min-h-0 md:min-h-[245px] border-b-[1.5px] md:border-b-0 md:border-r-[1.5px] border-ink relative ${
               idx > 0 ? "md:pl-[28px]" : ""
             } ${idx === steps.length - 1 ? "md:border-r-0 border-b-0" : ""}`}
           >
-            <span className="font-dm-mono text-[0.7rem] text-pink font-medium">
+            <span className="font-dm-mono text-[0.66rem] sm:text-[0.7rem] text-pink font-medium">
               {step.num}
             </span>
-            <h3 className="text-[1.3rem] tracking-[-0.05em] mt-[28px] md:mt-[48px] mb-[11px] font-bold">
+            <h3 className="text-[1.15rem] sm:text-[1.3rem] tracking-[-0.05em] mt-3 sm:mt-5 md:mt-[48px] mb-2 sm:mb-[11px] font-bold">
               {step.title}
             </h3>
-            <p className="text-muted text-[0.88rem] leading-[1.6] max-w-[240px] m-0">
+            <p className="text-muted text-[0.86rem] sm:text-[0.88rem] leading-[1.6] max-w-none md:max-w-[240px] m-0">
               {step.description}
             </p>
           </article>

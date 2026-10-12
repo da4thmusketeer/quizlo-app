@@ -306,7 +306,7 @@ export default function HomePage() {
           <div className="orbit pointer-events-none opacity-20 scale-50 -right-20 -top-20" aria-hidden="true" />
           <div className="relative z-10 max-w-[800px]">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-lime text-ink text-[0.72rem] font-bold font-dm-mono uppercase rounded-full border border-ink mb-3 shadow-[2px_2px_0_#16151d]">
-              🌱 Account Ready & Onboarded
+              Account Ready & Onboarded
             </div>
             <h1 className="text-[2.2rem] sm:text-[2.8rem] font-extrabold tracking-[-0.04em] leading-[1.1] text-ink">
               Welcome aboard, <span className="highlight">{usernameDisplay}!</span> 👋
@@ -376,38 +376,30 @@ export default function HomePage() {
             </div>
 
             {/* Card 2: Explore Community */}
-            <div
-              onClick={() =>
-                goeyToast.info("Community Library", {
-                  description: "Exploring community quiz library...",
-                })
-              }
-              className="bg-lilac/30 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group"
+            <Link
+              href="/explore"
+              className="bg-lilac/30 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group no-underline text-ink"
             >
               <div>
                 <span className="font-dm-mono text-[0.7rem] font-bold text-purple-950 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-ink inline-block mb-2">
-                  50,000+ Decks
+                  Knowledge Archive
                 </span>
                 <h3 className="text-[1.25rem] font-extrabold text-ink group-hover:text-pink transition-colors">
-                  Explore Community Decks
+                  Explore All Quizzes
                 </h3>
                 <p className="text-muted text-[0.85rem] mt-1.5 leading-[1.5]">
-                  Browse pre-made quizzes created by students in Science, Coding, History, and Languages.
+                  Browse pre-made quizzes across Science, Coding, Trivia, History, and Geography.
                 </p>
               </div>
               <div className="mt-5 pt-3 flex items-center text-[0.85rem] font-extrabold text-ink group-hover:translate-x-1 transition-transform">
                 Browse Library <ArrowRight className="w-4 h-4 ml-1 text-pink" />
               </div>
-            </div>
+            </Link>
 
             {/* Card 3: Custom Builder */}
-            <div
-              onClick={() =>
-                goeyToast.info("Manual Deck Builder ✏️", {
-                  description: "Opening custom deck builder...",
-                })
-              }
-              className="bg-pink/15 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group"
+            <Link
+              href="/create"
+              className="bg-pink/15 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group no-underline text-ink"
             >
               <div>
                 <span className="font-dm-mono text-[0.7rem] font-bold text-pink uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-ink inline-block mb-2">
@@ -423,7 +415,7 @@ export default function HomePage() {
               <div className="mt-5 pt-3 flex items-center text-[0.85rem] font-extrabold text-ink group-hover:translate-x-1 transition-transform">
                 Create Manual Deck <ArrowRight className="w-4 h-4 ml-1 text-pink" />
               </div>
-            </div>
+            </Link>
           </div>
         </section>
 
@@ -472,6 +464,13 @@ export default function HomePage() {
                 Pick a deck to test your knowledge right now.
               </p>
             </div>
+            <Link
+              href="/explore"
+              className="text-xs font-bold text-pink hover:text-ink transition-colors flex items-center gap-1 font-dm-mono uppercase"
+            >
+              <span>View all</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
