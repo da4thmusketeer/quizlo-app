@@ -376,9 +376,19 @@ export default function HomePage() {
             </div>
 
             {/* Card 2: Explore Community */}
+<<<<<<< HEAD
             <Link
               href="/explore"
               className="bg-lilac/30 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group no-underline text-ink"
+=======
+            <div
+              onClick={() =>
+                goeyToast.info("Community Library", {
+                  description: "Exploring community quiz library...",
+                })
+              }
+              className="bg-lilac/30 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group"
+>>>>>>> 8534661f77e9319aa925c14dc12d2571387fb15a
             >
               <div>
                 <span className="font-dm-mono text-[0.7rem] font-bold text-purple-950 uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-ink inline-block mb-2">
@@ -397,9 +407,19 @@ export default function HomePage() {
             </Link>
 
             {/* Card 3: Custom Builder */}
+<<<<<<< HEAD
             <Link
               href="/create"
               className="bg-pink/15 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group no-underline text-ink"
+=======
+            <div
+              onClick={() =>
+                goeyToast.info("Manual Deck Builder ✏️", {
+                  description: "Opening custom deck builder...",
+                })
+              }
+              className="bg-pink/15 border-2 border-ink rounded-[20px] p-6 shadow-[6px_6px_0_#16151d] hover:translate-y-[-3px] hover:shadow-[9px_9px_0_#16151d] transition-all cursor-pointer flex flex-col justify-between group"
+>>>>>>> 8534661f77e9319aa925c14dc12d2571387fb15a
             >
               <div>
                 <span className="font-dm-mono text-[0.7rem] font-bold text-pink uppercase tracking-wider bg-white px-2.5 py-0.5 rounded-full border border-ink inline-block mb-2">
