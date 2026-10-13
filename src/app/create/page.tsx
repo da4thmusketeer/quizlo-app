@@ -2200,9 +2200,9 @@ export default function CreatePage() {
                 <h2 className="text-[1.1rem] font-extrabold tracking-[-0.03em]">
                   AI Quiz Generator
                 </h2>
-                <span className="ml-auto px-2.5 py-0.5 bg-lime text-ink text-[0.68rem] font-bold font-dm-mono uppercase rounded-full border border-ink">
+                {/* <span className="ml-auto px-2.5 py-0.5 bg-lime text-ink text-[0.68rem] font-bold font-dm-mono uppercase rounded-full border border-ink">
                   Quizlo AI
-                </span>
+                </span> */}
               </div>
 
               <p className="text-muted text-[0.85rem] leading-[1.6] -mt-1">
