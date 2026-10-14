@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Script from "next/script";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { googleAuth, storeToken, AuthResponse } from "@/lib/auth";
 import { goeyToast } from "goey-toast";
 
@@ -51,14 +51,15 @@ declare global {
 interface GoogleAuthButtonProps {
   mode?: "login" | "signup";
   text?: string;
+  redirectTo?: string;
 }
 
 export default function GoogleAuthButton({
   mode = "login",
   text = "Continue with Google",
+  redirectTo = "/home",
 }: GoogleAuthButtonProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [isGsiLoaded, setIsGsiLoaded] = useState(false);
   const hiddenBtnRef = useRef<HTMLDivElement>(null);
@@ -81,11 +82,10 @@ export default function GoogleAuthButton({
       description: successDesc,
     });
 
-    const redirectTo =
-      mode === "login" ? searchParams?.get("redirect") || "/home" : "/home";
+    const destination = redirectTo || "/home";
 
     setTimeout(() => {
-      router.push(redirectTo);
+      router.push(destination);
     }, 800);
   };
 

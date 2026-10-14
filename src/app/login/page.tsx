@@ -165,7 +165,10 @@ function LoginForm() {
           </div>
 
           {/* Social Login */}
-          <GoogleAuthButton mode="login" />
+          <GoogleAuthButton
+            mode="login"
+            redirectTo={searchParams.get("redirect") || "/home"}
+          />
 
           {/* Toggle to Signup */}
           <p className="text-center text-[0.85rem] text-muted pt-4">

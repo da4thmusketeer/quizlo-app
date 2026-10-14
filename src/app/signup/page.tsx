@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AuthLayout from "@/components/AuthLayout";
@@ -9,7 +9,7 @@ import { signup, storeToken } from "@/lib/auth";
 import GoogleAuthButton from "@/components/GoogleAuthButton";
 import { goeyToast } from "goey-toast";
 
-export default function SignupPage() {
+function SignupForm() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -266,5 +266,19 @@ export default function SignupPage() {
           </p>
         </form>
     </AuthLayout>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-pink border-t-transparent" />
+        </div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   );
 }
