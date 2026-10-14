@@ -3,9 +3,23 @@
  * Handles all authentication-related API calls
  */
 
+import { z } from "zod";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_BASE_URL;
 
 // Type definitions for API requests and responses
+export const googleAuthSchema = z
+  .object({
+    idToken: z.string().optional(),
+    token: z.string().optional(),
+    credential: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.idToken || data.token || data.credential), {
+    message: "Google ID token or credential is required",
+  });
+
+export type GoogleAuthRequest = z.infer<typeof googleAuthSchema>;
+
 export interface SignupRequest {
   username: string;
   email: string;
@@ -117,6 +131,49 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
   }
 }
 
+
+/**
+ * Authenticate with Google
+ */
+export async function googleAuth(
+  data: GoogleAuthRequest,
+): Promise<AuthResponse> {
+  try {
+    const validatedData = googleAuthSchema.parse(data);
+
+    const response = await fetch(`${API_BASE_URL}/auth/google`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(validatedData),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        result.error ||
+          result.message ||
+          "Google authentication failed. Please try again.",
+      );
+    }
+
+    return result;
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new Error(
+        error.issues[0]?.message || "Invalid Google authentication data.",
+      );
+    }
+    if (error instanceof Error) {
+      throw new Error(error.message);
+    }
+    throw new Error(
+      "An unexpected error occurred during Google authentication.",
+    );
+  }
+}
 /**
  * Logout the current user
  */
