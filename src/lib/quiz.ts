@@ -192,8 +192,28 @@ export interface CreateQuizQuestionOption {
 export interface CreateQuizQuestion {
   text: string;
   type: QuestionType;
+  explanation?: string | null;
   media?: any[];
   answerOptions: CreateQuizQuestionOption[];
+}
+
+export interface QuizDetails {
+  id: string;
+  title: string;
+  description?: string | null;
+  coverPicture?: string | null;
+  categoryId: string;
+  category?: { name: string };
+  difficulty: "Easy" | "Medium" | "Hard";
+  timeAllocated: number;
+  isPrivate: boolean;
+  isDraft: boolean;
+  creationMode: string;
+  questions: (CreateQuizQuestion & {
+    id?: string;
+    order?: number;
+    answerOptions: (CreateQuizQuestionOption & { matchText?: string | null; order?: number })[];
+  })[];
 }
 
 export interface CreateQuizPayload {
@@ -209,6 +229,45 @@ export interface CreateQuizPayload {
   questions?: CreateQuizQuestion[];
   aiPrompt?: string;
   questionCount?: number;
+}
+
+export interface CreateAiQuizPayload {
+  title: string;
+  topic: string;
+  categoryId: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  timeAllocated: number;
+  isPrivate: boolean;
+  numberOfQuestions?: number;
+  description?: string;
+  isDraft?: boolean;
+  coverPicture?: string | null;
+  creationMode?: "Manual" | "Ai" | "manual" | "ai";
+}
+
+/** Create and save a quiz with AI-generated questions. */
+export async function createAiQuiz(data: CreateAiQuizPayload) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/quiz/create-ai`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(data),
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || result.success === false) {
+    throw new Error(
+      (typeof result.error === "string" && result.error) ||
+        (typeof result.message === "string" && result.message) ||
+        "Failed to generate AI quiz.",
+    );
+  }
+
+  return result;
 }
 
 /**

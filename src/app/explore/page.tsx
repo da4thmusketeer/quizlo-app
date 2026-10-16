@@ -38,6 +38,8 @@ const DEFAULT_CATEGORIES = [
   "Pop Culture",
 ];
 
+const MOBILE_PAGE_SIZE = 5;
+
 interface ActiveQuestion {
   question: string;
   options: string[];
@@ -59,6 +61,22 @@ export default function ExplorePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("All");
   const [isLoadingQuiz, setIsLoadingQuiz] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobilePage, setMobilePage] = useState(1);
+  const resultsRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Match Tailwind's single-column layout below the sm breakpoint.
+    const media = window.matchMedia("(max-width: 639px)");
+    const updateViewport = () => setIsMobile(media.matches);
+    updateViewport();
+    media.addEventListener("change", updateViewport);
+    return () => media.removeEventListener("change", updateViewport);
+  }, []);
+
+  useEffect(() => {
+    setMobilePage(1);
+  }, [searchQuery, selectedCategory, selectedDifficulty, isMobile]);
 
   // Auth / Profile state
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -146,6 +164,22 @@ export default function ExplorePage() {
       return matchesSearch && matchesCategory && matchesDifficulty;
     });
   }, [quizzes, searchQuery, selectedCategory, selectedDifficulty]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredQuizzes.length / MOBILE_PAGE_SIZE));
+  const currentPage = Math.min(mobilePage, totalPages);
+  const pageStart = (currentPage - 1) * MOBILE_PAGE_SIZE;
+  const visibleQuizzes = isMobile
+    ? filteredQuizzes.slice(pageStart, pageStart + MOBILE_PAGE_SIZE)
+    : filteredQuizzes;
+
+  useEffect(() => {
+    setMobilePage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const changeMobilePage = (page: number) => {
+    setMobilePage(Math.max(1, Math.min(page, totalPages)));
+    resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   // Quiz Player handlers
   const handleStartQuiz = async (quiz: Quiz) => {
@@ -389,10 +423,12 @@ export default function ExplorePage() {
         </section>
 
         {/* Results Counter */}
-        <div className="flex items-center justify-between text-xs font-dm-mono text-muted mb-4 px-1">
-          <span>
+        <div ref={resultsRef} className="flex items-center justify-between text-xs font-dm-mono text-muted mb-4 px-1 scroll-mt-6">
+          <span aria-live="polite" aria-atomic="true">
             {isLoading
               ? "Fetching quizzes..."
+              : isMobile && filteredQuizzes.length > 0
+              ? `Showing ${pageStart + 1}–${Math.min(pageStart + MOBILE_PAGE_SIZE, filteredQuizzes.length)} of ${filteredQuizzes.length} quizzes`
               : `Showing ${filteredQuizzes.length} ${
                   filteredQuizzes.length === 1 ? "quiz" : "quizzes"
                 }`}
@@ -449,7 +485,7 @@ export default function ExplorePage() {
           </div>
         ) : filteredQuizzes.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {filteredQuizzes.map((quiz) => {
+            {visibleQuizzes.map((quiz) => {
               const diff = quiz.difficulty || "Medium";
               const badgeColor =
                 diff.toLowerCase() === "easy"
@@ -470,6 +506,19 @@ export default function ExplorePage() {
                   className="group bg-white border-2 border-ink rounded-2xl p-5 shadow-[4px_4px_0_#16151d] hover:shadow-[6px_6px_0_#16151d] hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer"
                 >
                   <div>
+                    <img
+                      src={quiz.coverPicture?.trim() || "/quiz-placeholder.svg"}
+                      alt={`Cover for ${quiz.title}`}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full aspect-video object-cover rounded-xl border border-ink/20 mb-4"
+                      onError={(event) => {
+                        if (event.currentTarget.getAttribute("src") !== "/quiz-placeholder.svg") {
+                          event.currentTarget.src = "/quiz-placeholder.svg";
+                        }
+                      }}
+                    />
+
                     {/* Top Badges */}
                     <div className="flex items-center justify-between mb-3">
                       <span className="px-2.5 py-0.5 rounded-md bg-paper border border-ink font-dm-mono text-[0.66rem] font-bold uppercase tracking-wider text-muted">
@@ -531,6 +580,29 @@ export default function ExplorePage() {
               Clear All Filters
             </button>
           </div>
+        )}
+        {!isLoading && isMobile && totalPages > 1 && (
+          <nav aria-label="Quiz pagination" className="flex items-center justify-between gap-3 mt-6 sm:hidden">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => changeMobilePage(currentPage - 1)}
+              className="min-h-11 px-4 py-2 bg-white border-2 border-ink rounded-xl text-sm font-bold shadow-[2px_2px_0_#16151d] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              Previous
+            </button>
+            <span className="text-xs font-dm-mono text-muted" aria-live="polite" aria-atomic="true">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage === totalPages}
+              onClick={() => changeMobilePage(currentPage + 1)}
+              className="min-h-11 px-4 py-2 bg-lime border-2 border-ink rounded-xl text-sm font-bold shadow-[2px_2px_0_#16151d] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              Next
+            </button>
+          </nav>
         )}
       </main>
 

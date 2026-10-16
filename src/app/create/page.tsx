@@ -9,11 +9,16 @@ import { getToken } from "@/lib/auth";
 import { uploadToImageKit } from "@/lib/media";
 import {
   createQuiz,
+  createAiQuiz,
   getCategoryData,
   Category,
   QuestionType,
   CreateQuizPayload,
+  CreateAiQuizPayload,
+  QuizDetails,
+  updateQuiz,
 } from "@/lib/quiz";
+import { loadPreviewQuiz, rememberQuiz, quizPreviewUrl } from "@/lib/quizPreview";
 import { useQuizStore } from "@/store/quizStore";
 import {
   Sparkles,
@@ -63,6 +68,8 @@ interface QuestionItem {
   type: QuestionType;
   options: QuestionOption[];
   isOpen: boolean;
+  media?: any[];
+  explanation?: string | null;
 }
 
 type CreationMode = "manual" | "ai";
@@ -347,14 +354,18 @@ export default function CreatePage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">("Medium");
+  const [difficulty, setDifficulty] = useState<"Easy" | "Medium" | "Hard">(
+    "Medium",
+  );
   const [timeHours, setTimeHours] = useState(0);
   const [timeMinutes, setTimeMinutes] = useState(5);
   const [isPrivate, setIsPrivate] = useState(false);
 
   // Cover image upload
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
-  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(
+    null,
+  );
   const [isDraggingCover, setIsDraggingCover] = useState(false);
   const coverFileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -369,6 +380,49 @@ export default function CreatePage() {
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [editingQuiz, setEditingQuiz] = useState<QuizDetails | null>(null);
+  const [isLoadingEditor, setIsLoadingEditor] = useState(true);
+  const [editorError, setEditorError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const id = new URLSearchParams(window.location.search).get("edit");
+    if (!id) {
+      setIsLoadingEditor(false);
+      return;
+    }
+    loadPreviewQuiz(id).then((quiz) => {
+      if (!active) return;
+      setEditingQuiz(quiz);
+      setTitle(quiz.title);
+      setDescription(quiz.description ?? "");
+      setCategoryId(quiz.categoryId);
+      setDifficulty(quiz.difficulty);
+      setTimeHours(Math.floor(quiz.timeAllocated / 3600));
+      setTimeMinutes((quiz.timeAllocated % 3600) / 60);
+      setIsPrivate(quiz.isPrivate);
+      setCoverImagePreview(quiz.coverPicture ?? null);
+      setMode("manual");
+      setQuestions([...quiz.questions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((q) => ({
+        id: q.id ?? generateId(),
+        text: q.text,
+        type: q.type,
+        media: q.media,
+        explanation: q.explanation,
+        isOpen: true,
+        options: [...q.answerOptions].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((option) => ({
+          text: option.text,
+          isCorrect: option.isCorrect,
+          matchingText: option.matchingText ?? option.matchText ?? undefined,
+        })),
+      })));
+    }).catch((error: unknown) => {
+      if (active) setEditorError(error instanceof Error ? error.message : "Unable to load quiz.");
+    }).finally(() => {
+      if (active) setIsLoadingEditor(false);
+    });
+    return () => { active = false; };
+  }, []);
 
   // Load profile + categories
   useEffect(() => {
@@ -389,9 +443,7 @@ export default function CreatePage() {
         }
 
         const availableCats =
-          cats.length > 0
-            ? cats
-            : useQuizStore.getState().categories || [];
+          cats.length > 0 ? cats : useQuizStore.getState().categories || [];
 
         if (mounted && availableCats.length > 0) {
           setCategories(availableCats);
@@ -486,14 +538,12 @@ export default function CreatePage() {
 
   const toggleQuestion = (id: string) => {
     setQuestions((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, isOpen: !q.isOpen } : q))
+      prev.map((q) => (q.id === id ? { ...q, isOpen: !q.isOpen } : q)),
     );
   };
 
   const updateQuestionText = (id: string, text: string) => {
-    setQuestions((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, text } : q))
-    );
+    setQuestions((prev) => prev.map((q) => (q.id === id ? { ...q, text } : q)));
   };
 
   const switchQuestionType = (id: string, newType: QuestionType) => {
@@ -542,7 +592,7 @@ export default function CreatePage() {
           type: newType,
           options: newOptions,
         };
-      })
+      }),
     );
   };
 
@@ -553,11 +603,11 @@ export default function CreatePage() {
           ? {
               ...q,
               options: q.options.map((o, i) =>
-                i === optIdx ? { ...o, text } : o
+                i === optIdx ? { ...o, text } : o,
               ),
             }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -572,8 +622,8 @@ export default function CreatePage() {
                 isCorrect: i === optIdx,
               })),
             }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -584,10 +634,10 @@ export default function CreatePage() {
         return {
           ...q,
           options: q.options.map((o, i) =>
-            i === optIdx ? { ...o, isCorrect: !o.isCorrect } : o
+            i === optIdx ? { ...o, isCorrect: !o.isCorrect } : o,
           ),
         };
-      })
+      }),
     );
   };
 
@@ -596,8 +646,8 @@ export default function CreatePage() {
       prev.map((q) =>
         q.id === qId && q.options.length < 6
           ? { ...q, options: [...q.options, { text: "", isCorrect: false }] }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -610,14 +660,14 @@ export default function CreatePage() {
           newOptions[0].isCorrect = true;
         }
         return { ...q, options: newOptions };
-      })
+      }),
     );
   };
 
   const updateMatchingText = (
     qId: string,
     optIdx: number,
-    matchingText: string
+    matchingText: string,
   ) => {
     setQuestions((prev) =>
       prev.map((q) =>
@@ -625,11 +675,11 @@ export default function CreatePage() {
           ? {
               ...q,
               options: q.options.map((o, i) =>
-                i === optIdx ? { ...o, matchingText } : o
+                i === optIdx ? { ...o, matchingText } : o,
               ),
             }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -644,8 +694,8 @@ export default function CreatePage() {
                 { text: "", matchingText: "", isCorrect: true },
               ],
             }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -657,15 +707,15 @@ export default function CreatePage() {
               ...q,
               options: q.options.filter((_, i) => i !== optIdx),
             }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
   const moveSequencingStep = (
     qId: string,
     optIdx: number,
-    direction: "up" | "down"
+    direction: "up" | "down",
   ) => {
     setQuestions((prev) =>
       prev.map((q) => {
@@ -677,7 +727,7 @@ export default function CreatePage() {
         newOpts[optIdx] = newOpts[targetIdx];
         newOpts[targetIdx] = temp;
         return { ...q, options: newOpts };
-      })
+      }),
     );
   };
 
@@ -686,8 +736,8 @@ export default function CreatePage() {
       prev.map((q) =>
         q.id === qId && q.options.length < 8
           ? { ...q, options: [...q.options, { text: "", isCorrect: true }] }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -696,8 +746,8 @@ export default function CreatePage() {
       prev.map((q) =>
         q.id === qId && q.options.length > 2
           ? { ...q, options: q.options.filter((_, i) => i !== optIdx) }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -706,8 +756,8 @@ export default function CreatePage() {
       prev.map((q) =>
         q.id === qId && q.options.length < 5
           ? { ...q, options: [...q.options, { text: "", isCorrect: true }] }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -716,8 +766,8 @@ export default function CreatePage() {
       prev.map((q) =>
         q.id === qId && q.options.length > 1
           ? { ...q, options: q.options.filter((_, i) => i !== optIdx) }
-          : q
-      )
+          : q,
+      ),
     );
   };
 
@@ -727,7 +777,7 @@ export default function CreatePage() {
         if (q.id !== qId) return q;
         const textWithBlank = q.text ? `${q.text} [blank]` : "[blank]";
         return { ...q, text: textWithBlank };
-      })
+      }),
     );
   };
 
@@ -755,14 +805,18 @@ export default function CreatePage() {
             errors.push(`Question ${qNum} (MCQ): Needs at least 2 options`);
           }
           if (!q.options.some((o) => o.isCorrect && o.text.trim())) {
-            errors.push(`Question ${qNum} (MCQ): Needs a marked correct answer`);
+            errors.push(
+              `Question ${qNum} (MCQ): Needs a marked correct answer`,
+            );
           }
           break;
         }
 
         case "TrueFalse": {
           if (!q.options.some((o) => o.isCorrect)) {
-            errors.push(`Question ${qNum} (True/False): Select whether True or False is correct`);
+            errors.push(
+              `Question ${qNum} (True/False): Select whether True or False is correct`,
+            );
           }
           break;
         }
@@ -770,10 +824,14 @@ export default function CreatePage() {
         case "MultipleSelect": {
           const filled = q.options.filter((o) => o.text.trim());
           if (filled.length < 2) {
-            errors.push(`Question ${qNum} (Multiple Select): Needs at least 2 options`);
+            errors.push(
+              `Question ${qNum} (Multiple Select): Needs at least 2 options`,
+            );
           }
           if (!q.options.some((o) => o.isCorrect && o.text.trim())) {
-            errors.push(`Question ${qNum} (Multiple Select): Select at least 1 correct answer`);
+            errors.push(
+              `Question ${qNum} (Multiple Select): Select at least 1 correct answer`,
+            );
           }
           break;
         }
@@ -781,7 +839,9 @@ export default function CreatePage() {
         case "ShortAnswer": {
           const primary = q.options[0]?.text?.trim();
           if (!primary) {
-            errors.push(`Question ${qNum} (Short Answer): Primary accepted answer is required`);
+            errors.push(
+              `Question ${qNum} (Short Answer): Primary accepted answer is required`,
+            );
           }
           break;
         }
@@ -789,7 +849,9 @@ export default function CreatePage() {
         case "LongAnswer": {
           const sample = q.options[0]?.text?.trim();
           if (!sample) {
-            errors.push(`Question ${qNum} (Long Answer): Sample answer / rubric is required`);
+            errors.push(
+              `Question ${qNum} (Long Answer): Sample answer / rubric is required`,
+            );
           }
           break;
         }
@@ -797,17 +859,21 @@ export default function CreatePage() {
         case "FillInTheBlank": {
           const blankAns = q.options[0]?.text?.trim();
           if (!blankAns) {
-            errors.push(`Question ${qNum} (Fill in Blank): Missing correct answer for the blank`);
+            errors.push(
+              `Question ${qNum} (Fill in Blank): Missing correct answer for the blank`,
+            );
           }
           break;
         }
 
         case "Matching": {
           const validPairs = q.options.filter(
-            (o) => o.text.trim() && o.matchingText?.trim()
+            (o) => o.text.trim() && o.matchingText?.trim(),
           );
           if (validPairs.length < 2) {
-            errors.push(`Question ${qNum} (Matching): Needs at least 2 complete pairs (item + match)`);
+            errors.push(
+              `Question ${qNum} (Matching): Needs at least 2 complete pairs (item + match)`,
+            );
           }
           break;
         }
@@ -815,7 +881,9 @@ export default function CreatePage() {
         case "OrderSequencing": {
           const validSteps = q.options.filter((o) => o.text.trim());
           if (validSteps.length < 2) {
-            errors.push(`Question ${qNum} (Sequencing): Needs at least 2 ordered steps`);
+            errors.push(
+              `Question ${qNum} (Sequencing): Needs at least 2 ordered steps`,
+            );
           }
           break;
         }
@@ -823,7 +891,9 @@ export default function CreatePage() {
         case "Numeric": {
           const numStr = q.options[0]?.text?.trim();
           if (!numStr || isNaN(Number(numStr))) {
-            errors.push(`Question ${qNum} (Numeric): Enter a valid numerical answer`);
+            errors.push(
+              `Question ${qNum} (Numeric): Enter a valid numerical answer`,
+            );
           }
           break;
         }
@@ -842,14 +912,20 @@ export default function CreatePage() {
     if (!categoryId) errors.push("Category is required");
     if (timeHours === 0 && timeMinutes === 0)
       errors.push("Time limit must be at least 1 minute");
-    if (!aiNotes.trim() || aiNotes.trim().length < 30)
-      errors.push("Paste at least 30 characters of notes");
+    if (!aiNotes.trim()) errors.push("Quiz topic is required");
+    if (
+      !Number.isInteger(aiQuestionCount) ||
+      aiQuestionCount < 1 ||
+      aiQuestionCount > 50
+    )
+      errors.push("Choose between 1 and 50 questions");
     return errors;
-  }, [title, categoryId, timeHours, timeMinutes, aiNotes]);
+  }, [title, categoryId, timeHours, timeMinutes, aiNotes, aiQuestionCount]);
 
   /* ── Submit: Manual ──────────────────────────── */
 
   const handleManualSubmit = async () => {
+    if (isSubmitting) return;
     const token = getToken();
     if (!token) {
       goeyToast.error("Authentication required", {
@@ -897,8 +973,8 @@ export default function CreatePage() {
         difficulty,
         timeAllocated,
         isPrivate,
-        isDraft: false,
-        creationMode: "Manual",
+        isDraft: editingQuiz?.isDraft ?? false,
+        creationMode: editingQuiz?.creationMode ?? "Manual",
         questions: questions.map((q) => {
           let formattedOptions: any[] = [];
 
@@ -974,12 +1050,29 @@ export default function CreatePage() {
           return {
             text: q.text.trim(),
             type: q.type,
+            media: q.media,
+            explanation: q.explanation,
             answerOptions: formattedOptions,
           };
         }),
       };
 
-      await createQuiz(payload);
+      const result = editingQuiz
+        ? await updateQuiz(editingQuiz.id, { ...payload, coverPicture: uploadedCoverUrl ?? null, description: description.trim() })
+        : await createQuiz(payload);
+      const savedQuiz = result.data ?? result.quiz ?? result;
+      const savedId = savedQuiz.id ?? editingQuiz?.id;
+      if (!savedId) throw new Error("Quiz saved, but its ID was missing from the response.");
+      // Manual questions are already known, including when PATCH only returns an ID.
+      rememberQuiz({
+        ...editingQuiz,
+        ...payload,
+        ...savedQuiz,
+        id: savedId,
+        coverPicture: savedQuiz.coverPicture !== undefined ? savedQuiz.coverPicture : uploadedCoverUrl ?? null,
+        category: savedQuiz.category ?? categories.find((category) => category.id === categoryId),
+        questions: savedQuiz.questions ?? payload.questions,
+      } as QuizDetails);
 
       // Invalidate store cache so explore page immediately reflects the new quiz
       try {
@@ -988,11 +1081,11 @@ export default function CreatePage() {
         // silent
       }
 
-      goeyToast.success("Quiz Created!", {
-        description: `"${title}" has been published successfully.`,
+      goeyToast.success(editingQuiz ? "Quiz Updated!" : "Quiz Created!", {
+        description: `"${title}" has been ${editingQuiz ? "updated" : "published"} successfully.`,
       });
 
-      router.push("/explore");
+      router.push(quizPreviewUrl(savedId));
     } catch (err: any) {
       goeyToast.error("Failed to create quiz", {
         description: err.message || "Something went wrong.",
@@ -1005,6 +1098,7 @@ export default function CreatePage() {
   /* ── Submit: AI ──────────────────────────────── */
 
   const handleAiGenerate = async () => {
+    if (isGenerating) return;
     const token = getToken();
     if (!token) {
       goeyToast.error("Authentication required", {
@@ -1044,7 +1138,7 @@ export default function CreatePage() {
       }
 
       const timeAllocated = Math.max(60, timeHours * 3600 + timeMinutes * 60);
-      const payload: CreateQuizPayload = {
+      const payload: CreateAiQuizPayload = {
         title: title.trim(),
         description: description.trim() || undefined,
         ...(uploadedCoverUrl ? { coverPicture: uploadedCoverUrl } : {}),
@@ -1053,12 +1147,15 @@ export default function CreatePage() {
         timeAllocated,
         isPrivate,
         isDraft: false,
-        creationMode: "AI",
-        aiPrompt: aiNotes.trim(),
-        questionCount: aiQuestionCount,
+        creationMode: "Ai",
+        topic: aiNotes.trim(),
+        numberOfQuestions: aiQuestionCount,
       };
 
-      await createQuiz(payload);
+      const result = await createAiQuiz(payload);
+      const savedQuiz = result.data ?? result.quiz ?? result;
+      if (!savedQuiz.id) throw new Error("Quiz saved, but its ID was missing from the response.");
+      rememberQuiz(savedQuiz);
 
       try {
         useQuizStore.getState().fetchQuizzes(true);
@@ -1070,7 +1167,7 @@ export default function CreatePage() {
         description: `"${title}" has been created with ${aiQuestionCount} questions.`,
       });
 
-      router.push("/explore");
+      router.push(quizPreviewUrl(savedQuiz.id));
     } catch (err: any) {
       goeyToast.error("Failed to generate quiz", {
         description: err.message || "Something went wrong.",
@@ -1082,8 +1179,13 @@ export default function CreatePage() {
 
   /* ── Render ──────────────────────────────────── */
 
-  const usernameDisplay =
-    profile?.username || profile?.firstName || "Quizzer";
+  const usernameDisplay = profile?.username || profile?.firstName || "Quizzer";
+
+  if (isLoadingEditor || editorError) {
+    return <div className="min-h-screen bg-paper text-ink"><DashboardNavbar /><main className="max-w-xl mx-auto p-8" aria-live="polite">
+      {editorError ? <><h1 className="text-2xl font-extrabold mb-3">Unable to open the editor</h1><p role="alert">{editorError}</p><button className="button-3d mt-6" onClick={() => window.location.reload()}>Try again</button></> : <p className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" />Loading quiz...</p>}
+    </main></div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-paper text-ink selection:bg-pink selection:text-white">
@@ -1100,15 +1202,15 @@ export default function CreatePage() {
         {/* ── Page Header ──────────────────────── */}
         <section className="text-center sm:text-left">
           <h1 className="text-[clamp(2rem,5vw,3rem)] font-extrabold tracking-[-0.05em] leading-[1.1] mb-2">
-            Create a <span className="highlight">quiz.</span>
+            {editingQuiz ? "Edit your " : "Create a "}<span className="highlight">quiz.</span>
           </h1>
           <p className="text-muted text-[0.92rem] sm:text-[1rem] leading-[1.6] max-w-xl mx-auto sm:mx-0">
-            Build your own quiz deck manually or let AI generate questions.
+            {editingQuiz ? "Fine-tune your questions and settings, then save to preview your changes." : "Build your own quiz deck manually or let AI generate questions."}
           </p>
         </section>
 
         {/* ── Mode Switcher (Tab Pills) ──────── */}
-        <section className="flex justify-center">
+        {!editingQuiz && <section className="flex justify-center">
           <div className="relative inline-flex items-center bg-white border-2 border-ink rounded-[14px] p-1 shadow-[4px_4px_0_#16151d]">
             {/* Sliding active indicator */}
             <div
@@ -1141,7 +1243,7 @@ export default function CreatePage() {
               <span className="sm:hidden">AI</span>
             </button>
           </div>
-        </section>
+        </section>}
 
         {/* ── Quiz Metadata Card ───────────────── */}
         <section className="bg-white border-2 border-ink rounded-[20px] p-5 sm:p-7 shadow-[6px_6px_0_#16151d] space-y-5">
@@ -1345,8 +1447,8 @@ export default function CreatePage() {
                         ? d === "Easy"
                           ? "bg-lime text-ink shadow-[2px_2px_0_#16151d]"
                           : d === "Hard"
-                          ? "bg-pink text-white shadow-[2px_2px_0_#16151d]"
-                          : "bg-lilac text-purple-900 shadow-[2px_2px_0_#16151d]"
+                            ? "bg-pink text-white shadow-[2px_2px_0_#16151d]"
+                            : "bg-lilac text-purple-900 shadow-[2px_2px_0_#16151d]"
                         : "bg-white text-ink hover:bg-paper"
                     }`}
                   >
@@ -1360,7 +1462,7 @@ export default function CreatePage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted tracking-wider flex items-center gap-1.5">
-                   Time Limit
+                  Time Limit
                 </label>
               </div>
 
@@ -1375,7 +1477,9 @@ export default function CreatePage() {
                     value={timeHours}
                     onChange={(e) => {
                       const val = parseInt(e.target.value);
-                      setTimeHours(isNaN(val) ? 0 : Math.max(0, Math.min(12, val)));
+                      setTimeHours(
+                        isNaN(val) ? 0 : Math.max(0, Math.min(12, val)),
+                      );
                     }}
                     className="w-full py-2.5 pl-3 pr-8 bg-transparent font-dm-mono font-bold text-[0.88rem] text-ink focus:outline-none"
                     placeholder="0"
@@ -1394,7 +1498,9 @@ export default function CreatePage() {
                     value={timeMinutes}
                     onChange={(e) => {
                       const val = parseInt(e.target.value);
-                      setTimeMinutes(isNaN(val) ? 0 : Math.max(0, Math.min(59, val)));
+                      setTimeMinutes(
+                        isNaN(val) ? 0 : Math.max(0, Math.min(59, val)),
+                      );
                     }}
                     className="w-full py-2.5 pl-3 pr-9 bg-transparent font-dm-mono font-bold text-[0.88rem] text-ink focus:outline-none"
                     placeholder="0"
@@ -1445,9 +1551,7 @@ export default function CreatePage() {
                 {isPrivate ? "Private Quiz" : "Public Quiz"}
               </span>
               <span className="text-[0.75rem] text-muted">
-                {isPrivate
-                  ? "— Only you can see it"
-                  : "— Visible to everyone"}
+                {isPrivate ? "— Only you can see it" : "— Visible to everyone"}
               </span>
             </div>
             <button
@@ -1473,7 +1577,6 @@ export default function CreatePage() {
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-[1.15rem] font-extrabold tracking-[-0.03em] flex items-center gap-2">
-                  
                   Questions
                 </h2>
               </div>
@@ -1557,12 +1660,13 @@ export default function CreatePage() {
                               type="button"
                               onClick={() =>
                                 setOpenTypeMenuId(
-                                  openTypeMenuId === q.id ? null : q.id
+                                  openTypeMenuId === q.id ? null : q.id,
                                 )
                               }
                               className="flex items-center gap-1.5 px-2.5 py-1  border border-ink rounded-[8px] text-[0.75rem] font-extrabold text-ink hover:bg-paper cursor-pointer transition-colors shadow-[1px_1px_0_#16151d]"
                             >
-                              Change Type <ChevronDown className="w-3.5 h-3.5" />
+                              Change Type{" "}
+                              <ChevronDown className="w-3.5 h-3.5" />
                             </button>
 
                             {openTypeMenuId === q.id && (
@@ -1643,10 +1747,14 @@ export default function CreatePage() {
                         {q.type === "Mcq" && (
                           <div className="space-y-2">
                             <label className="text-[0.72rem] font-bold font-dm-mono uppercase text-muted tracking-wider">
-                              Answer Options — click circle to mark single correct answer
+                              Answer Options — click circle to mark single
+                              correct answer
                             </label>
                             {q.options.map((opt, optIdx) => (
-                              <div key={optIdx} className="flex items-center gap-2">
+                              <div
+                                key={optIdx}
+                                className="flex items-center gap-2"
+                              >
                                 <button
                                   type="button"
                                   onClick={() => setCorrectOption(q.id, optIdx)}
@@ -1655,7 +1763,11 @@ export default function CreatePage() {
                                       ? "bg-lime border-ink text-ink shadow-[1px_1px_0_#16151d]"
                                       : "bg-white border-ink/30 text-transparent hover:border-ink hover:bg-paper"
                                   }`}
-                                  aria-label={opt.isCorrect ? "Correct answer" : "Mark as correct"}
+                                  aria-label={
+                                    opt.isCorrect
+                                      ? "Correct answer"
+                                      : "Mark as correct"
+                                  }
                                 >
                                   <Check className="w-3.5 h-3.5" />
                                 </button>
@@ -1663,7 +1775,11 @@ export default function CreatePage() {
                                   type="text"
                                   value={opt.text}
                                   onChange={(e) =>
-                                    updateOptionText(q.id, optIdx, e.target.value)
+                                    updateOptionText(
+                                      q.id,
+                                      optIdx,
+                                      e.target.value,
+                                    )
                                   }
                                   placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
                                   className={`flex-1 p-2.5 border-2 rounded-[10px] font-medium text-[0.85rem] text-ink placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-pink focus:border-pink transition-all ${
@@ -1745,16 +1861,25 @@ export default function CreatePage() {
                               </span>
                             </div>
                             {q.options.map((opt, optIdx) => (
-                              <div key={optIdx} className="flex items-center gap-2">
+                              <div
+                                key={optIdx}
+                                className="flex items-center gap-2"
+                              >
                                 <button
                                   type="button"
-                                  onClick={() => toggleMultiSelectOption(q.id, optIdx)}
+                                  onClick={() =>
+                                    toggleMultiSelectOption(q.id, optIdx)
+                                  }
                                   className={`w-7 h-7 rounded-[8px] border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${
                                     opt.isCorrect
                                       ? "bg-lime border-ink text-ink shadow-[1px_1px_0_#16151d]"
                                       : "bg-white border-ink/30 text-transparent hover:border-ink hover:bg-paper"
                                   }`}
-                                  aria-label={opt.isCorrect ? "Correct answer" : "Mark as correct"}
+                                  aria-label={
+                                    opt.isCorrect
+                                      ? "Correct answer"
+                                      : "Mark as correct"
+                                  }
                                 >
                                   <Check className="w-3.5 h-3.5" />
                                 </button>
@@ -1762,7 +1887,11 @@ export default function CreatePage() {
                                   type="text"
                                   value={opt.text}
                                   onChange={(e) =>
-                                    updateOptionText(q.id, optIdx, e.target.value)
+                                    updateOptionText(
+                                      q.id,
+                                      optIdx,
+                                      e.target.value,
+                                    )
                                   }
                                   placeholder={`Option ${optIdx + 1}`}
                                   className={`flex-1 p-2.5 border-2 rounded-[10px] font-medium text-[0.85rem] text-ink placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-pink focus:border-pink transition-all ${
@@ -1800,10 +1929,14 @@ export default function CreatePage() {
                         {q.type === "ShortAnswer" && (
                           <div className="space-y-2.5">
                             <label className="text-[0.72rem] font-bold font-dm-mono uppercase text-muted tracking-wider">
-                              Accepted Answers — primary answer & optional alternatives
+                              Accepted Answers — primary answer & optional
+                              alternatives
                             </label>
                             {q.options.map((opt, optIdx) => (
-                              <div key={optIdx} className="flex items-center gap-2">
+                              <div
+                                key={optIdx}
+                                className="flex items-center gap-2"
+                              >
                                 <span className="px-2.5 py-1.5 bg-lime/30 border border-ink rounded-[8px] text-[0.7rem] font-bold font-dm-mono text-ink shrink-0">
                                   {optIdx === 0 ? "Primary" : `Alt ${optIdx}`}
                                 </span>
@@ -1811,7 +1944,11 @@ export default function CreatePage() {
                                   type="text"
                                   value={opt.text}
                                   onChange={(e) =>
-                                    updateOptionText(q.id, optIdx, e.target.value)
+                                    updateOptionText(
+                                      q.id,
+                                      optIdx,
+                                      e.target.value,
+                                    )
                                   }
                                   placeholder={
                                     optIdx === 0
@@ -1845,7 +1982,8 @@ export default function CreatePage() {
                               </button>
                             )}
                             <p className="text-[0.72rem] font-dm-mono text-muted">
-                              Matching is case-insensitive. Players get credit if their answer matches any accepted variation.
+                              Matching is case-insensitive. Players get credit
+                              if their answer matches any accepted variation.
                             </p>
                           </div>
                         )}
@@ -1868,7 +2006,8 @@ export default function CreatePage() {
                             <div className="bg-amber-50 border border-amber-200 rounded-[10px] p-2.5 flex items-start gap-2">
                               <Lightbulb className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                               <p className="text-[0.75rem] text-amber-900 leading-relaxed">
-                                Used as the reference benchmark for grading free-text player submissions.
+                                Used as the reference benchmark for grading
+                                free-text player submissions.
                               </p>
                             </div>
                           </div>
@@ -1881,20 +2020,27 @@ export default function CreatePage() {
                               Correct Blank Answer & Spellings
                             </label>
                             {q.options.map((opt, optIdx) => (
-                              <div key={optIdx} className="flex items-center gap-2">
+                              <div
+                                key={optIdx}
+                                className="flex items-center gap-2"
+                              >
                                 <span className="px-2.5 py-1.5 bg-sky-100 border border-ink rounded-[8px] text-[0.7rem] font-bold font-dm-mono text-ink shrink-0">
-                                  {optIdx === 0 ? "Target Blank" : `Alt ${optIdx}`}
+                                  {optIdx === 0
+                                    ? "Target Blank"
+                                    : `Alt ${optIdx}`}
                                 </span>
                                 <input
                                   type="text"
                                   value={opt.text}
                                   onChange={(e) =>
-                                    updateOptionText(q.id, optIdx, e.target.value)
+                                    updateOptionText(
+                                      q.id,
+                                      optIdx,
+                                      e.target.value,
+                                    )
                                   }
                                   placeholder={
-                                    optIdx === 0
-                                      ? "e.g. Moon"
-                                      : "e.g. The Moon"
+                                    optIdx === 0 ? "e.g. Moon" : "e.g. The Moon"
                                   }
                                   className="flex-1 p-2.5 bg-paper border-2 border-ink rounded-[10px] font-medium text-[0.85rem] text-ink placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-pink focus:border-pink transition-all"
                                 />
@@ -1923,7 +2069,9 @@ export default function CreatePage() {
                               </button>
                             )}
                             <p className="text-[0.72rem] font-dm-mono text-muted">
-                              Make sure your prompt above contains <strong className="text-ink">[blank]</strong> where the player will insert this word.
+                              Make sure your prompt above contains{" "}
+                              <strong className="text-ink">[blank]</strong>{" "}
+                              where the player will insert this word.
                             </p>
                           </div>
                         )}
@@ -1947,7 +2095,11 @@ export default function CreatePage() {
                                     type="text"
                                     value={opt.text}
                                     onChange={(e) =>
-                                      updateOptionText(q.id, optIdx, e.target.value)
+                                      updateOptionText(
+                                        q.id,
+                                        optIdx,
+                                        e.target.value,
+                                      )
                                     }
                                     placeholder="Left Prompt (e.g. France)"
                                     className="flex-1 p-2 bg-white border border-ink rounded-[8px] font-medium text-[0.85rem] text-ink placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-pink"
@@ -1962,7 +2114,7 @@ export default function CreatePage() {
                                       updateMatchingText(
                                         q.id,
                                         optIdx,
-                                        e.target.value
+                                        e.target.value,
                                       )
                                     }
                                     placeholder="Right Match (e.g. Paris)"
@@ -1994,7 +2146,8 @@ export default function CreatePage() {
                               </button>
                             )}
                             <p className="text-[0.72rem] font-dm-mono text-muted">
-                              Left and right elements will be randomly shuffled for players to match together.
+                              Left and right elements will be randomly shuffled
+                              for players to match together.
                             </p>
                           </div>
                         )}
@@ -2003,7 +2156,8 @@ export default function CreatePage() {
                         {q.type === "OrderSequencing" && (
                           <div className="space-y-2.5">
                             <label className="text-[0.72rem] font-bold font-dm-mono uppercase text-muted tracking-wider">
-                              Sequencing Steps — in correct order from first to last
+                              Sequencing Steps — in correct order from first to
+                              last
                             </label>
                             <div className="space-y-2">
                               {q.options.map((opt, optIdx) => (
@@ -2018,7 +2172,11 @@ export default function CreatePage() {
                                     type="text"
                                     value={opt.text}
                                     onChange={(e) =>
-                                      updateOptionText(q.id, optIdx, e.target.value)
+                                      updateOptionText(
+                                        q.id,
+                                        optIdx,
+                                        e.target.value,
+                                      )
                                     }
                                     placeholder={`Describe step ${optIdx + 1}...`}
                                     className="flex-1 p-2 bg-white border border-ink rounded-[8px] font-medium text-[0.85rem] text-ink placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-pink"
@@ -2073,7 +2231,8 @@ export default function CreatePage() {
                               </button>
                             )}
                             <p className="text-[0.72rem] font-dm-mono text-muted">
-                              Arrange the steps in the correct order here. They will be randomized when displayed to players.
+                              Arrange the steps in the correct order here. They
+                              will be randomized when displayed to players.
                             </p>
                           </div>
                         )}
@@ -2100,7 +2259,8 @@ export default function CreatePage() {
                               />
                             </div>
                             <p className="text-[0.72rem] font-dm-mono text-muted">
-                              Players will type this exact number in their answer input.
+                              Players will type this exact number in their
+                              answer input.
                             </p>
                           </div>
                         )}
@@ -2177,12 +2337,10 @@ export default function CreatePage() {
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
-                  Publishing Quiz...
+                  {editingQuiz ? "Saving Changes..." : "Publishing Quiz..."}
                 </span>
               ) : (
-                <>
-                  Publish Quiz 
-                </>
+                <>{editingQuiz ? "Save & Preview" : "Publish Quiz"}</>
               )}
             </button>
           </>
@@ -2206,38 +2364,39 @@ export default function CreatePage() {
               </div>
 
               <p className="text-muted text-[0.85rem] leading-[1.6] -mt-1">
-                Paste your lecture notes, article text, or topic description below.
-                Our AI engine will generate a quiz with the number of questions you
-                choose.
+                Paste your topic description below. Our AI engine will generate
+                a quiz with the number of questions you choose.
               </p>
 
               {/* Notes textarea */}
               <div className="space-y-1.5">
                 <label className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted tracking-wider">
-                  Study Notes / Content *
+                  Topic
                 </label>
                 <textarea
                   rows={7}
                   value={aiNotes}
                   onChange={(e) => setAiNotes(e.target.value)}
-                  placeholder="Paste your study notes here — e.g. 'Active recall and spaced repetition are cognitive science techniques that improve long-term memory retention by forcing the brain to retrieve information at optimal intervals...'"
+                  placeholder="Eg. The Solar System, including the Sun, planets, moons, and other celestial bodies. Key facts about each planet, their order from the Sun, and interesting features."
                   className="w-full p-3.5 bg-white border-2 border-ink rounded-[14px] font-medium text-[0.88rem] text-ink placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-pink focus:border-pink transition-all resize-none"
                 />
-                <div className="flex justify-between text-[0.72rem] font-dm-mono text-muted">
+                {/* <div className="flex justify-between text-[0.72rem] font-dm-mono text-muted">
                   <span>
                     {aiNotes.length} characters
                     {aiNotes.length < 30 && aiNotes.length > 0 && (
                       <span className="text-pink ml-1">(min 30)</span>
                     )}
                   </span>
-                  <span>{aiNotes.split(/\s+/).filter(Boolean).length} words</span>
-                </div>
+                  <span>
+                    {aiNotes.split(/\s+/).filter(Boolean).length} words
+                  </span>
+                </div> */}
               </div>
 
               {/* Number of questions */}
               <div className="space-y-1.5">
                 <label className="text-[0.75rem] font-bold font-dm-mono uppercase text-muted tracking-wider flex items-center gap-1.5">
-                  <Hash className="w-3 h-3" /> Number of Questions
+                  Number of Questions
                 </label>
                 <div className="flex items-center gap-2">
                   {[3, 5, 8, 10, 15].map((n) => (
@@ -2257,18 +2416,19 @@ export default function CreatePage() {
               </div>
 
               {/* AI Tips */}
-              <div className="bg-white/70 border border-ink/20 rounded-[12px] p-3.5 flex items-start gap-3">
+              {/* <div className="bg-white/70 border border-ink/20 rounded-[12px] p-3.5 flex items-start gap-3">
                 <Lightbulb className="w-5 h-5 text-lime shrink-0 mt-0.5" />
                 <div className="text-[0.8rem] text-muted leading-[1.55]">
-                  <strong className="text-ink">Tips for best results:</strong> Provide
-                  detailed notes with key facts, concepts, and definitions. The more
-                  context you give, the better the AI-generated questions will be.
+                  <strong className="text-ink">Tips for best results:</strong>{" "}
+                  Provide detailed notes with key facts, concepts, and
+                  definitions. The more context you give, the better the
+                  AI-generated questions will be.
                 </div>
-              </div>
+              </div> */}
             </section>
 
             {/* Validation Preview */}
-            {aiValidation.length > 0 && (
+            {/* {aiValidation.length > 0 && (
               <div className="bg-pink/10 border-2 border-pink/40 rounded-[14px] p-4 space-y-1.5">
                 <div className="flex items-center gap-2 text-[0.82rem] font-extrabold text-pink">
                   <AlertCircle className="w-4 h-4" />
@@ -2283,7 +2443,7 @@ export default function CreatePage() {
                   </p>
                 ))}
               </div>
-            )}
+            )} */}
 
             {/* Generate Button */}
             <button
@@ -2293,13 +2453,10 @@ export default function CreatePage() {
             >
               {isGenerating ? (
                 <span className="flex items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
                   Generating {aiQuestionCount} Questions...
                 </span>
               ) : (
-                <>
-                  Generate AI Quiz 
-                </>
+                <>Generate AI Quiz</>
               )}
             </button>
           </>
