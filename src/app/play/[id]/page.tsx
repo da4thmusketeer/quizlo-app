@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Clock, Loader2, Play, RotateCcw, ShieldCheck, WifiOff, X } from "lucide-react";
 import GameplayQuestion from "@/components/GameplayQuestion";
+import QuestionMediaRenderer from "@/components/QuestionMediaRenderer";
 import { useGameplayStore, recoverGame, beginGame, selectAnswer, advanceGame, finishGame, retryGame, resetGame, answerPayload } from "@/lib/gameplay";
 
 export default function PlayPage({ params }: { params: { id: string } }) {
@@ -114,7 +115,7 @@ export default function PlayPage({ params }: { params: { id: string } }) {
           <div><div className="flex justify-between text-xs font-dm-mono text-muted mb-2"><span>Question {game.index + 1} of {game.session.questions.length}</span><span>{Math.round(game.index / game.session.questions.length * 100)}% complete</span></div><div role="progressbar" aria-label="Quiz progress" aria-valuemin={0} aria-valuemax={game.session.questions.length} aria-valuenow={game.index} className="h-3 bg-white border-2 border-ink rounded-full overflow-hidden"><div className="h-full bg-lime transition-[width] duration-500 motion-reduce:transition-none" style={{ width: `${game.index / game.session.questions.length * 100}%` }} /></div></div>
           <section key={question.id} className="space-y-6 animate-[question-in_250ms_ease-out] motion-reduce:animate-none">
             <h2 ref={questionHeading} tabIndex={-1} className="text-2xl sm:text-3xl font-extrabold tracking-tight leading-snug whitespace-pre-wrap break-words outline-none">{question.text}</h2>
-            {question.media?.map((media, index) => <a key={index} href={media.url} target="_blank" rel="noreferrer" className="inline-block text-sm font-bold underline">View question attachment {index + 1}</a>)}
+            {question.media && question.media.length > 0 && <QuestionMediaRenderer media={question.media} compact />}
             <GameplayQuestion question={question} value={game.selections[question.id] ?? {}} disabled={busy || remaining === 0 || !!game.pending} onChange={value => selectAnswer(id, value)} />
           </section>
           <div className="pt-4 flex flex-col-reverse sm:flex-row items-center gap-4 justify-between">

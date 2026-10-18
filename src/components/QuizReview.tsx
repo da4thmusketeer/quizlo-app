@@ -1,6 +1,7 @@
 import { Check, Sparkles } from "lucide-react";
 import { QuizDetails, QuestionType } from "@/lib/quiz";
 import { normalizeQuizDetails } from "@/lib/quizPreview";
+import QuestionMediaRenderer from "@/components/QuestionMediaRenderer";
 
 const questionLabels: Record<QuestionType, string> = {
   Mcq: "Multiple choice",
@@ -108,24 +109,7 @@ export default function QuizReview({ quiz: sourceQuiz }: { quiz: QuizDetails }) 
                   {question.text}
                 </h3>
                 {question.media && question.media.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    {question.media.map((media, i) => {
-                      const url =
-                        typeof media === "string" ? media : media?.url;
-                      return typeof url === "string" &&
-                        /^https?:\/\//i.test(url) ? (
-                        <a
-                          key={i}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sm underline block"
-                        >
-                          View attached media {i + 1}
-                        </a>
-                      ) : null;
-                    })}
-                  </div>
+                  <QuestionMediaRenderer media={question.media} />
                 )}
                 <p className="text-xs text-muted font-dm-mono mt-4 mb-2">
                   {sequence

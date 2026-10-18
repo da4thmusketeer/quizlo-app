@@ -8,6 +8,8 @@ import { goeyToast } from "goey-toast";
 import { getProfileData, ProfileData } from "@/lib/user";
 import { getToken } from "@/lib/auth";
 import { uploadToImageKit } from "@/lib/media";
+import QuestionMediaUpload from "@/components/QuestionMediaUpload";
+import type { QuestionMedia } from "@/lib/media";
 import {
   createQuiz,
   createAiQuiz,
@@ -53,6 +55,7 @@ import {
   ListOrdered,
   MoveUp,
   MoveDown,
+  Bot,
 } from "lucide-react";
 
 /* ── Types ─────────────────────────────────────── */
@@ -780,6 +783,12 @@ export default function CreatePage() {
     );
   };
 
+  const updateQuestionMedia = (qId: string, media: QuestionMedia[] | undefined) => {
+    setQuestions((prev) =>
+      prev.map((q) => (q.id === qId ? { ...q, media } : q)),
+    );
+  };
+
   const insertBlankPlaceholder = (qId: string) => {
     setQuestions((prev) =>
       prev.map((q) => {
@@ -1290,7 +1299,7 @@ export default function CreatePage() {
                 mode === "ai" ? "text-white" : "text-muted hover:text-ink"
               }`}
             >
-              <Sparkles className="w-4 h-4" />
+              <Bot className="w-5 h-5" />
               <span className="hidden sm:inline">AI Generator</span>
               <span className="sm:hidden">AI</span>
             </button>
@@ -1792,6 +1801,12 @@ export default function CreatePage() {
                             className="w-full p-3 bg-paper border-2 border-ink rounded-[12px] font-medium text-[0.88rem] text-ink placeholder:text-muted/50 focus:outline-none focus:ring-2 focus:ring-pink focus:border-pink transition-all resize-none"
                           />
                         </div>
+
+                        {/* Media Upload (optional) */}
+                        <QuestionMediaUpload
+                          media={q.media as QuestionMedia[] | undefined}
+                          onChange={(m) => updateQuestionMedia(q.id, m)}
+                        />
 
                         {/* ── TYPE-SPECIFIC EDITORS ── */}
 

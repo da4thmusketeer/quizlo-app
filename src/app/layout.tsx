@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "goey-toast/styles.css";
 import ToasterProvider from "@/components/ToasterProvider";
+import PageTransitionProvider from "@/components/PageTransitionProvider";
 
 const plusJakartaSans = localFont({
   src: "./fonts/PlusJakartaSans.ttf",
@@ -36,7 +37,9 @@ export default function RootLayout({
     <html lang="en" className={`${plusJakartaSans.variable} ${dmMono.variable}`}>
       <body className="antialiased">
         <div className="grain" aria-hidden="true" />
-        {children}
+        <PageTransitionProvider>
+          {children}
+        </PageTransitionProvider>
         <ToasterProvider />
       </body>
     </html>

@@ -114,13 +114,21 @@ export interface QuizResults {
 }
 
 export class QuizApiError extends Error {
-  constructor(message: string, public status: number) {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
     super(message);
     this.name = "QuizApiError";
   }
 }
 
-async function gameplayRequest<T>(path: string, operationId: string, body?: SubmitAnswerPayload, local = false): Promise<T> {
+async function gameplayRequest<T>(
+  path: string,
+  operationId: string,
+  body?: SubmitAnswerPayload,
+  local = false,
+): Promise<T> {
   const token = getToken();
   let response: Response;
   try {
@@ -136,17 +144,39 @@ async function gameplayRequest<T>(path: string, operationId: string, body?: Subm
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
-    throw new QuizApiError("Connection interrupted. Your progress is saved. Reconnect and retry.", 0);
+    throw new QuizApiError(
+      "Connection interrupted. Your progress is saved. Reconnect and retry.",
+      0,
+    );
   }
   let result;
-  try { result = await response.json(); } catch {
-    throw new QuizApiError("The server returned an unreadable response. Your progress is saved.", response.status);
+  try {
+    result = await response.json();
+  } catch {
+    throw new QuizApiError(
+      "The server returned an unreadable response. Your progress is saved.",
+      response.status,
+    );
   }
-  if (!result || typeof result !== "object") throw new QuizApiError("The server returned an invalid quiz response.", response.status);
+  if (!result || typeof result !== "object")
+    throw new QuizApiError(
+      "The server returned an invalid quiz response.",
+      response.status,
+    );
   if (!response.ok || result.success === false) {
     // Some backends return the original completed result on a repeated completion.
-    if (response.status === 409 && path.endsWith("/complete") && typeof result.data?.score === "number") return result.data;
-    throw new QuizApiError(typeof result.message === "string" ? result.message : "The quiz request failed. Please retry.", response.status);
+    if (
+      response.status === 409 &&
+      path.endsWith("/complete") &&
+      typeof result.data?.score === "number"
+    )
+      return result.data;
+    throw new QuizApiError(
+      typeof result.message === "string"
+        ? result.message
+        : "The quiz request failed. Please retry.",
+      response.status,
+    );
   }
   return result.data ?? result;
 }
@@ -257,7 +287,10 @@ export interface QuizDetails {
   questions: (CreateQuizQuestion & {
     id?: string;
     order?: number;
-    answerOptions: (CreateQuizQuestionOption & { matchText?: string | null; order?: number })[];
+    answerOptions: (CreateQuizQuestionOption & {
+      matchText?: string | null;
+      order?: number;
+    })[];
   })[];
 }
 
@@ -384,16 +417,41 @@ export async function getQuizById(id: string): Promise<Quiz> {
 /**
  * Start a quiz session
  */
-export async function startQuiz(id: string, operationId = crypto.randomUUID()): Promise<QuizSession> {
-  return gameplayRequest<QuizSession>(`/api/gameplay/${encodeURIComponent(id)}/start`, operationId, undefined, true);
+export async function startQuiz(
+  id: string,
+  operationId = crypto.randomUUID(),
+): Promise<QuizSession> {
+  return gameplayRequest<QuizSession>(
+    `/api/gameplay/${encodeURIComponent(id)}/start`,
+    operationId,
+    undefined,
+    true,
+  );
 }
 
-export async function submitAnswer(attemptId: string, data: SubmitAnswerPayload, operationId = crypto.randomUUID()): Promise<AnswerSubmissionResponse> {
-  return gameplayRequest<AnswerSubmissionResponse>(`/api/gameplay/attempts/${encodeURIComponent(attemptId)}/submit-answer`, operationId, data, true);
+export async function submitAnswer(
+  attemptId: string,
+  data: SubmitAnswerPayload,
+  operationId = crypto.randomUUID(),
+): Promise<AnswerSubmissionResponse> {
+  return gameplayRequest<AnswerSubmissionResponse>(
+    `/api/gameplay/attempts/${encodeURIComponent(attemptId)}/submit-answer`,
+    operationId,
+    data,
+    true,
+  );
 }
 
-export async function completeQuiz(attemptId: string, operationId = crypto.randomUUID()): Promise<QuizResults> {
-  return gameplayRequest<QuizResults>(`/api/gameplay/attempts/${encodeURIComponent(attemptId)}/complete`, operationId, undefined, true);
+export async function completeQuiz(
+  attemptId: string,
+  operationId = crypto.randomUUID(),
+): Promise<QuizResults> {
+  return gameplayRequest<QuizResults>(
+    `/api/gameplay/attempts/${encodeURIComponent(attemptId)}/complete`,
+    operationId,
+    undefined,
+    true,
+  );
 }
 /**
  * Delete a quiz by ID
@@ -430,7 +488,10 @@ export async function deleteQuiz(
  * Get a quiz by ID including its full questions and answer options
  * Used for the edit page so we can pre-populate all fields.
  */
-export async function getQuizWithQuestions(id: string, signal?: AbortSignal): Promise<any> {
+export async function getQuizWithQuestions(
+  id: string,
+  signal?: AbortSignal,
+): Promise<any> {
   try {
     const token = getToken();
     const response = await fetch(`${API_BASE_URL}/quiz/${id}`, {

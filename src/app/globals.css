@@ -14,6 +14,25 @@
   from { opacity: 1; translate: 0 -30px; rotate: 0deg; }
   to { opacity: 0; translate: 30px 380px; rotate: 300deg; }
 }
+@keyframes quizlo-bounce-item {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+}
+@keyframes quizlo-bar-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(10%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
 
 :root {
   --ink: #16151d;

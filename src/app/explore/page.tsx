@@ -9,7 +9,7 @@ import {
   HelpCircle,
   Play,
   X,
-  RotateCcw,
+  RotateCcw
 } from "lucide-react";
 import { getToken } from "@/lib/auth";
 import { getProfileData, ProfileData } from "@/lib/user";
@@ -395,8 +395,36 @@ export default function ExplorePage() {
                     </p>
                   </div>
 
+                  {/* Creator info */}
+                  <div className="mt-4 flex items-center gap-2">
+                    {quiz.creator?.profilePicture ? (
+                      <img
+                        src={quiz.creator.profilePicture}
+                        alt={quiz.creator.username ?? "Creator"}
+                        className="w-6 h-6 rounded-full border-[1.5px] border-ink object-cover shrink-0"
+                        onError={(e) => {
+                          // Hide broken image and show fallback initial
+                          e.currentTarget.style.display = "none";
+                          const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                          if (fallback) fallback.style.display = "flex";
+                        }}
+                      />
+                    ) : null}
+                    {/* Fallback initial avatar – shown when no picture or image errors */}
+                    <span
+                      className={`w-6 h-6 rounded-full border-[1.5px] border-ink bg-lilac text-[0.6rem] font-extrabold uppercase items-center justify-center shrink-0 ${
+                        quiz.creator?.profilePicture ? "hidden" : "flex"
+                      }`}
+                    >
+                      {(quiz.creator?.username ?? "?")[0]}
+                    </span>
+                    <span className="text-[0.72rem] font-bold text-muted truncate">
+                      {quiz.creator?.username ?? "Unknown"}
+                    </span>
+                  </div>
+
                   {/* Footer metadata & Action button */}
-                  <div className="mt-5 pt-4 border-t border-ink/10 flex items-center justify-between">
+                  <div className="mt-3 pt-3 border-t border-ink/10 flex items-center justify-between">
                     <div className="flex items-center gap-3 text-[0.72rem] font-dm-mono text-muted">
                       <span className="flex items-center gap-1">
                         <HelpCircle className="w-3.5 h-3.5" />
