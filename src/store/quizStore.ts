@@ -2,6 +2,37 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { Quiz, Category, getAllQuizzes, getCategoryData } from "@/lib/quiz";
 
+let quizzesRequest: Promise<Quiz[]> | null = null;
+let categoriesRequest: Promise<Category[]> | null = null;
+
+// Cache access must never prevent a successful API response from updating the UI.
+const cacheStorage = createJSONStorage(() => ({
+  getItem: (name: string) => {
+    try {
+      if (typeof window === "undefined") return null;
+      const value = localStorage.getItem(name);
+      if (value) JSON.parse(value);
+      return value;
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      if (typeof window !== "undefined") localStorage.setItem(name, value);
+    } catch {
+      // Continue with the in-memory cache when storage is unavailable or full.
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      if (typeof window !== "undefined") localStorage.removeItem(name);
+    } catch {
+      // Storage is optional.
+    }
+  },
+}));
+
 export interface QuizState {
   quizzes: Quiz[];
   categories: Category[];
@@ -44,56 +75,68 @@ export const useQuizStore = create<QuizState>()(
       setHasHydrated: (val: boolean) => set({ _hasHydrated: val }),
 
       fetchQuizzes: async (force = false) => {
+        if (quizzesRequest) return quizzesRequest;
         const state = get();
         // If already cached and not forced, return cached quizzes without network request
-        if (!force && state.isQuizzesFetched && state.quizzes.length > 0) {
+        if (!force && state.isQuizzesFetched) {
           return state.quizzes;
         }
 
         set({ isLoadingQuizzes: true, quizzesError: null });
-        try {
-          const data = await getAllQuizzes();
-          const quizzes = Array.isArray(data) ? data : [];
-          set({
-            quizzes,
-            isLoadingQuizzes: false,
-            isQuizzesFetched: true,
-            quizzesError: null,
-            lastFetched: Date.now(),
-          });
-          return quizzes;
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : "Failed to fetch quizzes";
-          set({ isLoadingQuizzes: false, quizzesError: errorMsg });
-          return state.quizzes;
-        }
+        quizzesRequest = (async () => {
+          try {
+            const data = await getAllQuizzes();
+            const quizzes = Array.isArray(data) ? data : [];
+            set({
+              quizzes,
+              isLoadingQuizzes: false,
+              isQuizzesFetched: true,
+              quizzesError: null,
+              lastFetched: Date.now(),
+            });
+            return quizzes;
+          } catch (error) {
+            const errorMsg =
+              error instanceof Error ? error.message : "Failed to fetch quizzes";
+            set({ isLoadingQuizzes: false, quizzesError: errorMsg });
+            return get().quizzes;
+          }
+        })().finally(() => {
+          quizzesRequest = null;
+        });
+        return quizzesRequest;
       },
 
       fetchCategories: async (force = false) => {
+        if (categoriesRequest) return categoriesRequest;
         const state = get();
         // If already cached and not forced, return cached categories without network request
-        if (!force && state.isCategoriesFetched && state.categories.length > 0) {
+        if (!force && state.isCategoriesFetched) {
           return state.categories;
         }
 
         set({ isLoadingCategories: true, categoriesError: null });
-        try {
-          const data = await getCategoryData();
-          const categories = Array.isArray(data) ? data : [];
-          set({
-            categories,
-            isLoadingCategories: false,
-            isCategoriesFetched: true,
-            categoriesError: null,
-          });
-          return categories;
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : "Failed to fetch categories";
-          set({ isLoadingCategories: false, categoriesError: errorMsg });
-          return state.categories;
-        }
+        categoriesRequest = (async () => {
+          try {
+            const data = await getCategoryData();
+            const categories = Array.isArray(data) ? data : [];
+            set({
+              categories,
+              isLoadingCategories: false,
+              isCategoriesFetched: true,
+              categoriesError: null,
+            });
+            return categories;
+          } catch (error) {
+            const errorMsg =
+              error instanceof Error ? error.message : "Failed to fetch categories";
+            set({ isLoadingCategories: false, categoriesError: errorMsg });
+            return get().categories;
+          }
+        })().finally(() => {
+          categoriesRequest = null;
+        });
+        return categoriesRequest;
       },
 
       fetchExploreData: async (force = false) => {
@@ -122,11 +165,9 @@ export const useQuizStore = create<QuizState>()(
     }),
     {
       name: "quizlo_explore_store",
-      storage: createJSONStorage(() =>
-        typeof window !== "undefined" ? localStorage : ({} as any)
-      ),
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+      storage: cacheStorage,
+      onRehydrateStorage: (state) => () => {
+        state.setHasHydrated(true);
       },
       partialize: (state) => ({
         quizzes: state.quizzes,

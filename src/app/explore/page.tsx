@@ -7,24 +7,15 @@ import {
   Compass,
   Clock,
   HelpCircle,
-  Trophy,
-  Flame,
-  Zap,
   Play,
   X,
-  Check,
   RotateCcw,
-  User,
-  Loader2,
 } from "lucide-react";
-import { goeyToast } from "goey-toast";
 import { getToken } from "@/lib/auth";
 import { getProfileData, ProfileData } from "@/lib/user";
 import DashboardNavbar from "@/components/DashboardNavbar";
 import {
-  getQuizWithQuestions,
   Category,
-  Quiz,
 } from "@/lib/quiz";
 import { useQuizStore } from "@/store/quizStore";
 
@@ -40,18 +31,12 @@ const DEFAULT_CATEGORIES = [
 
 const MOBILE_PAGE_SIZE = 5;
 
-interface ActiveQuestion {
-  question: string;
-  options: string[];
-  answer: number;
-}
-
 export default function ExplorePage() {
   const {
     quizzes,
     categories,
     isLoadingQuizzes,
-    isLoadingCategories,
+    quizzesError,
     isQuizzesFetched,
     _hasHydrated,
     fetchExploreData,
@@ -60,7 +45,6 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("All");
-  const [isLoadingQuiz, setIsLoadingQuiz] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePage, setMobilePage] = useState(1);
   const resultsRef = React.useRef<HTMLDivElement>(null);
@@ -79,18 +63,9 @@ export default function ExplorePage() {
   }, [searchQuery, selectedCategory, selectedDifficulty, isMobile]);
 
   // Auth / Profile state
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [userXp, setUserXp] = useState(0);
   const [userStreak, setUserStreak] = useState(0);
-
-  // Active Quiz Modal state
-  const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
-  const [activeQuestions, setActiveQuestions] = useState<ActiveQuestion[]>([]);
-  const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [score, setScore] = useState(0);
-  const [quizFinished, setQuizFinished] = useState(false);
 
   // Compute category list dynamically from cached categories in Zustand store
   const categoryList = useMemo(() => {
@@ -111,7 +86,7 @@ export default function ExplorePage() {
   // Loading state: true if quizzes are not yet loaded and hydration/fetch is underway
   const isLoading =
     quizzes.length === 0 &&
-    (!_hasHydrated || !isQuizzesFetched || isLoadingQuizzes || isLoadingCategories);
+    (!_hasHydrated || isLoadingQuizzes || (!isQuizzesFetched && !quizzesError));
 
   // Load auth state and fetch/load cached explore data via Zustand store
   useEffect(() => {
@@ -119,7 +94,6 @@ export default function ExplorePage() {
     const token = getToken();
 
     if (token) {
-      setIsLoggedIn(true);
       getProfileData()
         .then((profileRes) => {
           if (isMounted && profileRes?.success && profileRes.data) {
@@ -179,136 +153,6 @@ export default function ExplorePage() {
   const changeMobilePage = (page: number) => {
     setMobilePage(Math.max(1, Math.min(page, totalPages)));
     resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  // Quiz Player handlers
-  const handleStartQuiz = async (quiz: Quiz) => {
-    setIsLoadingQuiz(true);
-    setActiveQuiz(quiz);
-    setCurrentQuestionIdx(0);
-    setSelectedOption(null);
-    setScore(0);
-    setQuizFinished(false);
-
-    try {
-      const fullQuiz = await getQuizWithQuestions(quiz.id);
-      const questionsSource =
-        fullQuiz?.questions || fullQuiz?.data?.questions || fullQuiz?.data;
-
-      if (Array.isArray(questionsSource) && questionsSource.length > 0) {
-        const parsedQuestions: ActiveQuestion[] = questionsSource.map((q: any) => ({
-          question: q.text || q.question || "Quiz question",
-          options: (q.answerOptions || q.options || []).map((opt: any) =>
-            typeof opt === "string" ? opt : opt.text || "Option"
-          ),
-          answer:
-            Array.isArray(q.answerOptions) &&
-            q.answerOptions.findIndex((opt: any) => opt.isCorrect) !== -1
-              ? q.answerOptions.findIndex((opt: any) => opt.isCorrect)
-              : 0,
-        }));
-
-        setActiveQuestions(parsedQuestions);
-      } else {
-        // Fallback questions for this quiz
-        setActiveQuestions([
-          {
-            question: `What is the core focus of "${quiz.title}"?`,
-            options: [
-              "Mastering key principles and concepts",
-              "Unrelated trivia and speculation",
-              "Temporary memorization without understanding",
-              "Random computational algorithms",
-            ],
-            answer: 0,
-          },
-          {
-            question: `Which learning habit is scientifically proven to boost retention in ${
-              quiz.category?.name || "this topic"
-            }?`,
-            options: [
-              "Passive re-reading of textbooks",
-              "Active recall through spaced testing",
-              "Cramming late the night before",
-              "Skipping practice questions",
-            ],
-            answer: 1,
-          },
-          {
-            question: `How would you best describe the target difficulty of this deck?`,
-            options: [
-              "Novice",
-              quiz.difficulty || "Medium",
-              "Unmeasured",
-              "Extraterrestrial",
-            ],
-            answer: 1,
-          },
-        ]);
-      }
-    } catch (err) {
-      console.warn("Could not fetch remote questions, using default questions:", err);
-      setActiveQuestions([
-        {
-          question: `What is the primary objective of "${quiz.title}"?`,
-          options: [
-            "Understanding core subject concepts",
-            "Random guesses",
-            "Passive memorization",
-            "Unrelated formulas",
-          ],
-          answer: 0,
-        },
-        {
-          question: `What is the best way to retain information about ${
-            quiz.category?.name || "this subject"
-          }?`,
-          options: [
-            "Passive skimming",
-            "Active recall & practice quizzes",
-            "Ignoring difficult topics",
-            "Studying once a year",
-          ],
-          answer: 1,
-        },
-      ]);
-    } finally {
-      setIsLoadingQuiz(false);
-    }
-  };
-
-  const handleSelectOption = (idx: number) => {
-    if (selectedOption !== null) return;
-    setSelectedOption(idx);
-    if (
-      activeQuestions.length > 0 &&
-      idx === activeQuestions[currentQuestionIdx]?.answer
-    ) {
-      setScore((prev) => prev + 1);
-    }
-  };
-
-  const handleNextQuestion = () => {
-    if (currentQuestionIdx + 1 < activeQuestions.length) {
-      setCurrentQuestionIdx((prev) => prev + 1);
-      setSelectedOption(null);
-    } else {
-      const earnedXp = score * 25 + 50;
-      setQuizFinished(true);
-      setUserXp((prev) => prev + earnedXp);
-      if (userStreak === 0) setUserStreak(1);
-
-      goeyToast.success("Quiz Completed! 🏆", {
-        description: `You scored ${score}/${activeQuestions.length} and earned +${earnedXp} XP!`,
-      });
-    }
-  };
-
-  const handleCloseQuiz = () => {
-    setActiveQuiz(null);
-    setActiveQuestions([]);
-    setSelectedOption(null);
-    setQuizFinished(false);
   };
 
   return (
@@ -427,6 +271,8 @@ export default function ExplorePage() {
           <span aria-live="polite" aria-atomic="true">
             {isLoading
               ? "Fetching quizzes..."
+              : quizzesError && quizzes.length === 0
+              ? "Quizzes unavailable"
               : isMobile && filteredQuizzes.length > 0
               ? `Showing ${pageStart + 1}–${Math.min(pageStart + MOBILE_PAGE_SIZE, filteredQuizzes.length)} of ${filteredQuizzes.length} quizzes`
               : `Showing ${filteredQuizzes.length} ${
@@ -460,6 +306,14 @@ export default function ExplorePage() {
         </div>
 
         {/* Dynamic Quizzes Grid / Loading Skeletons */}
+        {quizzesError && !isLoading && (
+          <div role="alert" className="bg-pink/10 border-2 border-ink rounded-2xl p-5 mb-5">
+            <h2 className="font-extrabold">Unable to refresh quizzes</h2>
+            <p className="text-sm text-muted mt-2">{quizzesError}</p>
+            {quizzes.length > 0 && <p className="text-sm text-muted mt-2">Showing previously loaded quizzes.</p>}
+            <button type="button" onClick={() => void fetchExploreData(true)} className="mt-3 font-bold underline">Try again</button>
+          </div>
+        )}
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -500,9 +354,9 @@ export default function ExplorePage() {
               )} mins`;
 
               return (
-                <article
+                <Link
                   key={quiz.id}
-                  onClick={() => handleStartQuiz(quiz)}
+                  href={`/play/${encodeURIComponent(quiz.id)}`}
                   className="group bg-white border-2 border-ink rounded-2xl p-5 shadow-[4px_4px_0_#16151d] hover:shadow-[6px_6px_0_#16151d] hover:-translate-y-1 transition-all flex flex-col justify-between cursor-pointer"
                 >
                   <div>
@@ -558,11 +412,11 @@ export default function ExplorePage() {
                       <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                     </div>
                   </div>
-                </article>
+                </Link>
               );
             })}
           </div>
-        ) : (
+        ) : quizzesError ? null : (
           /* Empty State */
           <div className="p-10 text-center items-center my-6">
             <h3 className="font-extrabold text-lg mb-1">No quizzes matched</h3>
@@ -618,164 +472,6 @@ export default function ExplorePage() {
         <span>© 2026 Quizlo</span>
       </footer> */}
 
-      {/* Interactive Quiz Runner Modal */}
-      {activeQuiz && (
-        <div className="fixed inset-0 z-50 bg-ink/75 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-paper border-2 border-ink rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-[8px_8px_0_#16151d] relative max-h-[90vh] overflow-y-auto">
-            {/* Modal Close Button */}
-            <button
-              onClick={handleCloseQuiz}
-              className="absolute top-4 right-4 p-1.5 bg-white border border-ink rounded-lg text-ink hover:bg-pink hover:text-white transition-colors cursor-pointer"
-              aria-label="Close quiz"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {isLoadingQuiz ? (
-              <div className="py-12 flex flex-col items-center justify-center text-center">
-                <Loader2 className="w-8 h-8 text-pink animate-spin mb-3" />
-                <p className="font-extrabold text-sm text-ink">
-                  Preparing quiz questions...
-                </p>
-              </div>
-            ) : !quizFinished ? (
-              <div>
-                {/* Header metadata */}
-                <div className="flex items-center gap-2 font-dm-mono text-[0.66rem] font-bold text-muted mb-3">
-                  <span className="px-2 py-0.5 bg-white border border-ink/40 rounded uppercase text-ink">
-                    {activeQuiz.category?.name || "General"}
-                  </span>
-                  <span>•</span>
-                  <span>
-                    Question {currentQuestionIdx + 1} of{" "}
-                    {activeQuestions.length}
-                  </span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full bg-white border border-ink rounded-full h-2 mb-5 overflow-hidden">
-                  <div
-                    className="bg-pink h-full transition-all duration-300"
-                    style={{
-                      width: `${
-                        ((currentQuestionIdx + 1) /
-                          Math.max(activeQuestions.length, 1)) *
-                        100
-                      }%`,
-                    }}
-                  />
-                </div>
-
-                {/* Question Text */}
-                <h3 className="text-lg sm:text-xl font-extrabold tracking-tight leading-snug mb-5 text-ink">
-                  {activeQuestions[currentQuestionIdx]?.question}
-                </h3>
-
-                {/* Answer Options */}
-                <div className="space-y-2.5 mb-6">
-                  {activeQuestions[currentQuestionIdx]?.options.map(
-                    (option, idx) => {
-                      const isSelected = selectedOption === idx;
-                      const isCorrect =
-                        idx === activeQuestions[currentQuestionIdx]?.answer;
-
-                      let btnStyle =
-                        "bg-white border-2 border-ink text-ink hover:bg-gray-50";
-
-                      if (selectedOption !== null) {
-                        if (isCorrect) {
-                          btnStyle =
-                            "bg-lime border-2 border-ink text-ink font-bold shadow-[2px_2px_0_#16151d]";
-                        } else if (isSelected) {
-                          btnStyle =
-                            "bg-pink border-2 border-ink text-white font-bold";
-                        } else {
-                          btnStyle =
-                            "bg-white/50 border border-ink/30 text-muted";
-                        }
-                      }
-
-                      return (
-                        <button
-                          key={idx}
-                          disabled={selectedOption !== null}
-                          onClick={() => handleSelectOption(idx)}
-                          className={`w-full text-left p-3.5 rounded-xl font-medium text-sm transition-all flex items-center justify-between cursor-pointer ${btnStyle}`}
-                        >
-                          <span>{option}</span>
-                          {selectedOption !== null && isCorrect && (
-                            <Check className="w-4 h-4 text-ink shrink-0 ml-2" />
-                          )}
-                          {selectedOption !== null &&
-                            isSelected &&
-                            !isCorrect && (
-                              <X className="w-4 h-4 text-white shrink-0 ml-2" />
-                            )}
-                        </button>
-                      );
-                    }
-                  )}
-                </div>
-
-                {/* Footer Controls */}
-                <div className="flex items-center justify-between pt-3 border-t border-ink/10">
-                  <span className="font-dm-mono text-xs text-muted">
-                    Score: {score}/{activeQuestions.length}
-                  </span>
-                  <button
-                    disabled={selectedOption === null}
-                    onClick={handleNextQuestion}
-                    className="button-3d py-2.5 px-4 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <span>
-                      {currentQuestionIdx + 1 === activeQuestions.length
-                        ? "Finish Quiz"
-                        : "Next Question"}
-                    </span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* Quiz Finished View */
-              <div className="text-center py-4">
-                <div className="w-14 h-14 bg-lime border-2 border-ink rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-[3px_3px_0_#16151d]">
-                  <Trophy className="w-7 h-7 text-ink" />
-                </div>
-
-                <h3 className="text-2xl font-extrabold mb-1">
-                  Quiz Completed!
-                </h3>
-                <p className="text-muted text-sm mb-4">
-                  You scored <strong className="text-ink">{score}</strong> out of{" "}
-                  <strong>{activeQuestions.length}</strong>!
-                </p>
-
-                <div className="inline-flex items-center gap-2 bg-white border-2 border-ink rounded-xl px-4 py-2 font-dm-mono text-sm font-bold text-ink mb-6 shadow-[2px_2px_0_#16151d]">
-                  <Zap className="w-4 h-4 text-ink fill-lime" />
-                  <span>+{score * 25 + 50} XP Earned</span>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2.5">
-                  <button
-                    onClick={() => activeQuiz && handleStartQuiz(activeQuiz)}
-                    className="flex-1 bg-white hover:bg-paper border-2 border-ink text-ink font-bold py-2.5 rounded-xl transition-all shadow-[2px_2px_0_#16151d] active:translate-y-0.5 flex items-center justify-center gap-1.5 text-sm cursor-pointer"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                    Play Again
-                  </button>
-
-                  <button
-                    onClick={handleCloseQuiz}
-                    className="flex-1 bg-ink hover:bg-pink text-white font-bold py-2.5 rounded-xl transition-colors shadow-[2px_2px_0_#ff5277] active:translate-y-0.5 text-sm cursor-pointer"
-                  >
-                    Back to Explore
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

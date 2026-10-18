@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, DM_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import "goey-toast/styles.css";
 import ToasterProvider from "@/components/ToasterProvider";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+const plusJakartaSans = localFont({
+  src: "./fonts/PlusJakartaSans.ttf",
+  weight: "200 800",
   variable: "--font-plus-jakarta",
   display: "swap",
   preload: false,
 });
 
-const dmMono = DM_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const dmMono = localFont({
+  src: [
+    { path: "./fonts/DMMono-Regular.ttf", weight: "400", style: "normal" },
+    { path: "./fonts/DMMono-Medium.ttf", weight: "500", style: "normal" },
+  ],
   variable: "--font-dm-mono",
   display: "swap",
   preload: false,

@@ -306,7 +306,11 @@ export function getToken(): string | null {
 export function clearToken(): void {
   if (typeof window !== "undefined") {
     // Remove from localStorage
-    localStorage.removeItem("auth_token");
+    try {
+      localStorage.removeItem("auth_token");
+    } catch {
+      // Cookie logout must still work when browser storage is unavailable.
+    }
 
     // Remove cookie by setting expiry date in the past
     const isProduction = process.env.NODE_ENV === "production";

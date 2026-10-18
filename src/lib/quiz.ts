@@ -63,6 +63,7 @@ export interface SanitizedQuestion {
     text: string;
     matchingText?: string; // For matching questions
   }[];
+  matchingTargets?: { id: string; text: string }[];
 }
 
 export interface QuizSession {
@@ -70,6 +71,8 @@ export interface QuizSession {
   quizTitle: string;
   timeAllocated: number;
   questions: SanitizedQuestion[];
+  startedAt?: string;
+  expiresAt?: string;
 }
 
 export type SubmitAnswerPayload = {
@@ -87,10 +90,11 @@ export type SubmitAnswerPayload = {
 );
 
 export interface AnswerSubmissionResponse {
-  isCorrect: boolean;
-  pointsEarned: number;
+  accepted?: boolean;
+  isCorrect?: boolean;
+  pointsEarned?: number;
   correctOptionId?: string | null; // For legacy MCQ support
-  correctData: any; // Dynamic correct answer data
+  correctData?: any; // Legacy API field; the gameplay facade strips this.
 }
 
 export interface QuizResults {
@@ -104,7 +108,47 @@ export interface QuizResults {
     questionId: string;
     type: string;
     correctData: any;
+    isCorrect?: boolean;
+    explanation?: string;
   }[];
+}
+
+export class QuizApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = "QuizApiError";
+  }
+}
+
+async function gameplayRequest<T>(path: string, operationId: string, body?: SubmitAnswerPayload, local = false): Promise<T> {
+  const token = getToken();
+  let response: Response;
+  try {
+    response = await fetch(local ? path : `${API_BASE_URL}${path}`, {
+      method: "POST",
+      credentials: "include",
+      signal: AbortSignal.timeout(20000),
+      headers: {
+        "Content-Type": "application/json",
+        "Idempotency-Key": operationId,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch {
+    throw new QuizApiError("Connection interrupted. Your progress is saved. Reconnect and retry.", 0);
+  }
+  let result;
+  try { result = await response.json(); } catch {
+    throw new QuizApiError("The server returned an unreadable response. Your progress is saved.", response.status);
+  }
+  if (!result || typeof result !== "object") throw new QuizApiError("The server returned an invalid quiz response.", response.status);
+  if (!response.ok || result.success === false) {
+    // Some backends return the original completed result on a repeated completion.
+    if (response.status === 409 && path.endsWith("/complete") && typeof result.data?.score === "number") return result.data;
+    throw new QuizApiError(typeof result.message === "string" ? result.message : "The quiz request failed. Please retry.", response.status);
+  }
+  return result.data ?? result;
 }
 
 // ==== Functions ====
@@ -114,6 +158,7 @@ export async function getAllQuizzes(): Promise<Quiz[]> {
     const token = getToken();
     const response = await fetch(`${API_BASE_URL}/quiz/all`, {
       method: "GET",
+      signal: AbortSignal.timeout(20000),
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -122,7 +167,7 @@ export async function getAllQuizzes(): Promise<Quiz[]> {
 
     const result = await response.json();
 
-    if (!response.ok) {
+    if (!response.ok || result.success === false) {
       throw new Error(result.message || "Failed to fetch quizzes.");
     }
 
@@ -339,100 +384,16 @@ export async function getQuizById(id: string): Promise<Quiz> {
 /**
  * Start a quiz session
  */
-export async function startQuiz(id: string): Promise<QuizSession> {
-  try {
-    const token = getToken();
-    const response = await fetch(`${API_BASE_URL}/quiz/${id}/start`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Failed to start quiz.");
-    }
-
-    return result.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(error.message);
-    }
-    throw new Error("An unexpected error occurred while starting the quiz.");
-  }
+export async function startQuiz(id: string, operationId = crypto.randomUUID()): Promise<QuizSession> {
+  return gameplayRequest<QuizSession>(`/api/gameplay/${encodeURIComponent(id)}/start`, operationId, undefined, true);
 }
 
-/**
- * Submit an answer for a question
- */
-export async function submitAnswer(
-  attemptId: string,
-  data: SubmitAnswerPayload,
-): Promise<AnswerSubmissionResponse> {
-  try {
-    const token = getToken();
-    const response = await fetch(
-      `${API_BASE_URL}/quiz/attempts/${attemptId}/submit-answer`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(data),
-      },
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Failed to submit answer.");
-    }
-
-    return result.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(error.message);
-    }
-    throw new Error(
-      "An unexpected error occurred while submitting the answer.",
-    );
-  }
+export async function submitAnswer(attemptId: string, data: SubmitAnswerPayload, operationId = crypto.randomUUID()): Promise<AnswerSubmissionResponse> {
+  return gameplayRequest<AnswerSubmissionResponse>(`/api/gameplay/attempts/${encodeURIComponent(attemptId)}/submit-answer`, operationId, data, true);
 }
 
-/**
- * Complete a quiz session
- */
-export async function completeQuiz(attemptId: string): Promise<QuizResults> {
-  try {
-    const token = getToken();
-    const response = await fetch(
-      `${API_BASE_URL}/quiz/attempts/${attemptId}/complete`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      },
-    );
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || "Failed to complete quiz.");
-    }
-
-    return result.data;
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(error.message);
-    }
-    throw new Error("An unexpected error occurred while completing the quiz.");
-  }
+export async function completeQuiz(attemptId: string, operationId = crypto.randomUUID()): Promise<QuizResults> {
+  return gameplayRequest<QuizResults>(`/api/gameplay/attempts/${encodeURIComponent(attemptId)}/complete`, operationId, undefined, true);
 }
 /**
  * Delete a quiz by ID
@@ -469,11 +430,12 @@ export async function deleteQuiz(
  * Get a quiz by ID including its full questions and answer options
  * Used for the edit page so we can pre-populate all fields.
  */
-export async function getQuizWithQuestions(id: string): Promise<any> {
+export async function getQuizWithQuestions(id: string, signal?: AbortSignal): Promise<any> {
   try {
     const token = getToken();
     const response = await fetch(`${API_BASE_URL}/quiz/${id}`, {
       method: "GET",
+      signal,
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

@@ -1,0 +1,62 @@
+Quiz gameplay integration
+=========================
+
+The gameplay routes use the existing API functions in src/lib/quiz.ts:
+  POST /api/gameplay/:id/start (Next.js facade -> POST /quiz/:id/start)
+  POST /api/gameplay/attempts/:attemptId/submit-answer -> existing backend endpoint
+  POST /api/gameplay/attempts/:attemptId/complete -> existing backend endpoint
+
+No batch-submit, resume, or results-fetch endpoint is assumed to exist.
+The frontend stages selections locally, then submits each answered question
+followed by completion when the user finishes or the countdown expires.
+Grading responses are never requested between questions. The per-answer facade
+validates and whitelists payload fields, and returns an acknowledgement only;
+it never forwards correctness flags or answer keys to the browser.
+
+The start response must include attemptId, quizTitle, timeAllocated (seconds),
+and nonempty questions. Optional startedAt/expiresAt timestamps are preferred.
+The Next.js start facade returns a whitelist of public session fields only.
+It removes correctness flags, explanations, and accepted written answers before
+the response reaches the browser. Legacy matchingText/matchText pairs are split
+into independent, shuffled matchingTargets [{id,text}] with unrelated target IDs.
+Sequencing options are shuffled and their order metadata is removed. The client
+also fails closed if known answer-key fields bypass this facade.
+
+For matching submissions, responseJson maps prompt option IDs to target text,
+following the existing SubmitAnswerPayload interface. Confirm this convention
+against the deployed backend before enabling matching quizzes in production.
+
+Each POST carries a stable Idempotency-Key. Retries reuse both the exact key
+and journaled request body. The backend MUST enforce idempotency transactionally
+for start, answer submission, completion, XP, and play counts. Client locks
+prevent concurrent requests within the app; they cannot provide exactly-once
+server writes if a connection drops after the server has already committed.
+The backend should return the original result for a repeated completion key.
+Gameplay POSTs are same-origin facades, so these headers do not require browser
+CORS permission from the backend.
+
+The backend remains authoritative for authorization, expiry, time validation,
+scoring, XP, play counts, and rankings. The client timer is presentation only.
+Automatic submission occurs at the client's deadline; the backend decides
+whether in-flight answers or delayed offline submissions are still acceptable.
+
+Completion must return score (0-100), questionsAnsweredCorrectly, totalQuestions,
+xpEarned, levelUp, and newLevel. Optional correctAnswers entries can include
+questionId, type, correctData, isCorrect, and explanation for detailed review.
+GET /quiz/:id is requested only after completion for author explanations and
+human-readable accepted answers. Missing review information is shown honestly
+and never fabricated; it does not block scores or XP.
+
+Session recovery uses tab-scoped sessionStorage and an account-token fingerprint.
+Only sanitized questions, selections, prepared submissions, deadline and attempt
+metadata are stored before completion. Correct answers are stored only after
+the backend confirms completion. This local state is not trusted by the server.
+Results are private to the current browser tab/session; Share Results shares
+only the score, quiz title, and a link to the quiz, not a private results URL.
+
+Verification:
+  node --test tests/gameplay.test.cjs tests/gameplayView.test.cjs
+  node tests/fixtures/gameplayBackend.cjs  (local fixture on 127.0.0.1:4011)
+  NEXT_PUBLIC_BACKEND_BASE_URL=http://127.0.0.1:4011 for local fixture testing.
+
+The fixture is test-only and is never imported by the application.

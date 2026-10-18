@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import QuizPreviewModal from "@/components/QuizPreviewModal";
 import DashboardNavbar from "@/components/DashboardNavbar";
 import { goeyToast } from "goey-toast";
 import { getProfileData, ProfileData } from "@/lib/user";
@@ -18,7 +19,7 @@ import {
   QuizDetails,
   updateQuiz,
 } from "@/lib/quiz";
-import { loadPreviewQuiz, rememberQuiz, quizPreviewUrl } from "@/lib/quizPreview";
+import { loadPreviewQuiz, rememberQuiz, quizSummaryUrl, normalizeQuizDetails } from "@/lib/quizPreview";
 import { useQuizStore } from "@/store/quizStore";
 import {
   Sparkles,
@@ -380,19 +381,15 @@ export default function CreatePage() {
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [generatedAiQuiz, setGeneratedAiQuiz] = useState<QuizDetails | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const aiRequest = React.useRef(false);
   const [editingQuiz, setEditingQuiz] = useState<QuizDetails | null>(null);
   const [isLoadingEditor, setIsLoadingEditor] = useState(true);
   const [editorError, setEditorError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    const id = new URLSearchParams(window.location.search).get("edit");
-    if (!id) {
-      setIsLoadingEditor(false);
-      return;
-    }
-    loadPreviewQuiz(id).then((quiz) => {
-      if (!active) return;
+  const restoreQuiz = (quiz: QuizDetails) => {
       setEditingQuiz(quiz);
       setTitle(quiz.title);
       setDescription(quiz.description ?? "");
@@ -416,6 +413,18 @@ export default function CreatePage() {
           matchingText: option.matchingText ?? option.matchText ?? undefined,
         })),
       })));
+  };
+
+  useEffect(() => {
+    let active = true;
+    const id = new URLSearchParams(window.location.search).get("edit");
+    if (!id) {
+      setIsLoadingEditor(false);
+      return;
+    }
+    loadPreviewQuiz(id).then((quiz) => {
+      if (!active) return;
+      restoreQuiz(quiz);
     }).catch((error: unknown) => {
       if (active) setEditorError(error instanceof Error ? error.message : "Unable to load quiz.");
     }).finally(() => {
@@ -973,7 +982,7 @@ export default function CreatePage() {
         difficulty,
         timeAllocated,
         isPrivate,
-        isDraft: editingQuiz?.isDraft ?? false,
+        isDraft: false,
         creationMode: editingQuiz?.creationMode ?? "Manual",
         questions: questions.map((q) => {
           let formattedOptions: any[] = [];
@@ -1060,6 +1069,7 @@ export default function CreatePage() {
       const result = editingQuiz
         ? await updateQuiz(editingQuiz.id, { ...payload, coverPicture: uploadedCoverUrl ?? null, description: description.trim() })
         : await createQuiz(payload);
+      if (result.success === false) throw new Error(result.message || "Failed to publish quiz.");
       const savedQuiz = result.data ?? result.quiz ?? result;
       const savedId = savedQuiz.id ?? editingQuiz?.id;
       if (!savedId) throw new Error("Quiz saved, but its ID was missing from the response.");
@@ -1072,7 +1082,7 @@ export default function CreatePage() {
         coverPicture: savedQuiz.coverPicture !== undefined ? savedQuiz.coverPicture : uploadedCoverUrl ?? null,
         category: savedQuiz.category ?? categories.find((category) => category.id === categoryId),
         questions: savedQuiz.questions ?? payload.questions,
-      } as QuizDetails);
+      } as QuizDetails, payload.questions);
 
       // Invalidate store cache so explore page immediately reflects the new quiz
       try {
@@ -1081,11 +1091,11 @@ export default function CreatePage() {
         // silent
       }
 
-      goeyToast.success(editingQuiz ? "Quiz Updated!" : "Quiz Created!", {
-        description: `"${title}" has been ${editingQuiz ? "updated" : "published"} successfully.`,
+      goeyToast.success(editingQuiz && !editingQuiz.isDraft ? "Quiz Updated!" : "Quiz Published!", {
+        description: `"${title}" has been ${editingQuiz && !editingQuiz.isDraft ? "updated" : "published"} successfully.`,
       });
 
-      router.push(quizPreviewUrl(savedId));
+      router.push(quizSummaryUrl(savedId));
     } catch (err: any) {
       goeyToast.error("Failed to create quiz", {
         description: err.message || "Something went wrong.",
@@ -1098,7 +1108,7 @@ export default function CreatePage() {
   /* ── Submit: AI ──────────────────────────────── */
 
   const handleAiGenerate = async () => {
-    if (isGenerating) return;
+    if (aiRequest.current || isGenerating || isSubmitting) return;
     const token = getToken();
     if (!token) {
       goeyToast.error("Authentication required", {
@@ -1115,7 +1125,10 @@ export default function CreatePage() {
       return;
     }
 
+    aiRequest.current = true;
     setIsGenerating(true);
+    setGeneratedAiQuiz(null);
+    setPublishError(null);
 
     try {
       let uploadedCoverUrl: string | undefined = undefined;
@@ -1146,38 +1159,75 @@ export default function CreatePage() {
         difficulty,
         timeAllocated,
         isPrivate,
-        isDraft: false,
+        isDraft: true,
         creationMode: "Ai",
         topic: aiNotes.trim(),
         numberOfQuestions: aiQuestionCount,
       };
 
       const result = await createAiQuiz(payload);
+      if (result.success === false) throw new Error(result.message || "Failed to generate quiz.");
       const savedQuiz = result.data ?? result.quiz ?? result;
       if (!savedQuiz.id) throw new Error("Quiz saved, but its ID was missing from the response.");
-      rememberQuiz(savedQuiz);
-
-      try {
-        useQuizStore.getState().fetchQuizzes(true);
-      } catch {
-        // silent
+      if (!Array.isArray(savedQuiz.questions)) throw new Error("Generated questions were missing. Please try again.");
+      const generated = normalizeQuizDetails({ ...payload, ...savedQuiz, category: savedQuiz.category ?? categories.find(category => category.id === categoryId), isDraft: true });
+      if (!generated.questions.length || generated.questions.some(question => !question.answerOptions?.length)) {
+        throw new Error("Generated answer options were missing. Please try again.");
       }
-
-      goeyToast.success("AI Quiz Generated!", {
-        description: `"${title}" has been created with ${aiQuestionCount} questions.`,
-      });
-
-      router.push(quizPreviewUrl(savedQuiz.id));
+      setGeneratedAiQuiz(generated);
+      setShowPreview(true);
+      goeyToast.success("Questions ready to review", { description: "Review your quiz, then publish or return to edit your prompt and settings." });
     } catch (err: any) {
       goeyToast.error("Failed to generate quiz", {
         description: err.message || "Something went wrong.",
       });
     } finally {
+      aiRequest.current = false;
       setIsGenerating(false);
     }
   };
 
+  const handleAiPublish = async () => {
+    if (!showPreview || mode !== "ai" || !generatedAiQuiz || aiRequest.current || isSubmitting) return;
+    aiRequest.current = true;
+    setIsSubmitting(true);
+    setPublishError(null);
+    try {
+      const result = await updateQuiz(generatedAiQuiz.id, { isDraft: false });
+      if (result.success === false) throw new Error(result.message || "Failed to publish quiz.");
+      const published = result.data ?? result.quiz ?? result;
+      if (published.isDraft === true) throw new Error("The quiz is still a draft. Please try publishing again.");
+      rememberQuiz({ ...generatedAiQuiz, ...published, id: generatedAiQuiz.id, isDraft: false, questions: published.questions?.length ? published.questions : generatedAiQuiz.questions }, generatedAiQuiz.questions);
+      void useQuizStore.getState().fetchQuizzes(true).catch(() => {});
+      goeyToast.success("Quiz Published!");
+      router.push(quizSummaryUrl(generatedAiQuiz.id));
+    } catch (err: any) {
+      setPublishError(err.message || "Failed to publish quiz. Please try again.");
+    } finally {
+      aiRequest.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
   /* ── Render ──────────────────────────────────── */
+
+  const previewQuiz: QuizDetails = {
+    id: editingQuiz?.id ?? "unsaved",
+    title: title.trim() || "Untitled quiz",
+    description,
+    coverPicture: coverImagePreview,
+    categoryId,
+    category: categories.find((category) => category.id === categoryId),
+    difficulty,
+    timeAllocated: timeHours * 3600 + timeMinutes * 60,
+    isPrivate,
+    isDraft: true,
+    creationMode: editingQuiz?.creationMode ?? "Manual",
+    questions: questions.map((question) => ({
+      ...question,
+      answerOptions: question.options,
+    })),
+  };
 
   const usernameDisplay = profile?.username || profile?.firstName || "Quizzer";
 
@@ -1222,6 +1272,7 @@ export default function CreatePage() {
             />
 
             <button
+              disabled={isGenerating || isSubmitting}
               onClick={() => setMode("manual")}
               className={`relative z-10 flex items-center justify-center gap-2 w-[130px] sm:w-[175px] py-2.5 rounded-[10px] text-[0.82rem] sm:text-[0.88rem] font-extrabold cursor-pointer transition-colors duration-300 ${
                 mode === "manual" ? "text-white" : "text-muted hover:text-ink"
@@ -1233,6 +1284,7 @@ export default function CreatePage() {
             </button>
 
             <button
+              disabled={isGenerating || isSubmitting}
               onClick={() => setMode("ai")}
               className={`relative z-10 flex items-center justify-center gap-2 w-[130px] sm:w-[175px] py-2.5 rounded-[10px] text-[0.82rem] sm:text-[0.88rem] font-extrabold cursor-pointer transition-colors duration-300 ${
                 mode === "ai" ? "text-white" : "text-muted hover:text-ink"
@@ -2329,20 +2381,23 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Submit */}
+            {/* Review locally before publishing. */}
+            <div className="flex flex-col sm:flex-row gap-4">
+            <button type="button" onClick={() => setShowPreview(true)} disabled={isSubmitting} className="flex-1 button-3d justify-center py-4">Preview Quiz</button>
             <button
               onClick={handleManualSubmit}
               disabled={isSubmitting}
-              className="w-full button-3d button-lime justify-center py-4 text-[0.95rem] font-extrabold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 w-full button-3d button-lime justify-center py-4 text-[0.95rem] font-extrabold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
-                  {editingQuiz ? "Saving Changes..." : "Publishing Quiz..."}
+                  {editingQuiz && !editingQuiz.isDraft ? "Saving Changes..." : "Publishing Quiz..."}
                 </span>
               ) : (
-                <>{editingQuiz ? "Save & Preview" : "Publish Quiz"}</>
+                <>{editingQuiz && !editingQuiz.isDraft ? "Save Changes" : "Publish Quiz"}</>
               )}
             </button>
+            </div>
           </>
         )}
 
@@ -2446,22 +2501,19 @@ export default function CreatePage() {
             )} */}
 
             {/* Generate Button */}
-            <button
-              onClick={handleAiGenerate}
-              disabled={isGenerating || aiValidation.length > 0}
-              className="w-full button-3d justify-center py-4 text-[0.95rem] font-extrabold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <span className="flex items-center gap-2">
-                  Generating {aiQuestionCount} Questions...
-                </span>
-              ) : (
-                <>Generate AI Quiz</>
-              )}
-            </button>
+            <p id="ai-publish-help" className="text-sm text-muted">Generate your quiz to review its questions before publishing. You can return to edit your prompt and settings.</p>
+            <button type="button" onClick={handleAiGenerate} disabled={isGenerating || isSubmitting || aiValidation.length > 0} aria-describedby="ai-publish-help" className="w-full button-3d button-lime justify-center py-4 disabled:opacity-50 disabled:cursor-not-allowed">{isGenerating ? "Generating Quiz..." : "Generate Quiz"}</button>
           </>
         )}
       </main>
+
+      {showPreview && <QuizPreviewModal
+        quiz={mode === "ai" && generatedAiQuiz ? generatedAiQuiz : previewQuiz}
+        onClose={() => { if (!aiRequest.current && !isSubmitting) setShowPreview(false); }}
+        onPublish={mode === "ai" && generatedAiQuiz ? handleAiPublish : undefined}
+        isPublishing={isSubmitting}
+        publishError={publishError}
+      />}
 
       {/* Footer */}
       {/* <footer className="py-6 border-t border-ink/10 text-center text-[0.78rem] text-muted font-medium">
